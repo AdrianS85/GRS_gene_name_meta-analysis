@@ -197,52 +197,6 @@ make_table_with_original_and_ncbi_ids <- function(list_returned_by_entrez_gene_s
   return(temp_df)
 }
 
-
-
-
-
-PRE_DATA <- read_preformated_data("zbitka_from_prepared_data.txt")
-
-#################################################
-##### ANNOTATE PROBE_IDs WITH ENSEMBL NAMES #####
-#################################################
-
-library(tidyverse)
-
-##### PREPARING LISTS TO BE USED ##### 
-
-### Read in the table with description of experiments. They need to have the same identifiers as data in PRE_DATA, that is: Paper(int), Experiment(str)
-descriptions <- readr::read_tsv("descriptions.txt", col_types = "nccccccccccccccccccccccc")
-### List of species names based on data in description files. This is a file we will be working on. Species is in format: small letters, english plural of species
-exp_species <- descriptions %>%
-  select("Paper_ID", "Species") %>%
-  unique() %>%
-  filter(Paper_ID %in% unique(PRE_DATA$Paper))
-  # filter(Paper_ID %in% c(40, 53))
-  # filter(Paper_ID %in% c(1, 2))
-
-
-readr::write_tsv(exp_species, 'exp_species_used_for_testing_which_platform_to_use_probes.tsv')
-
-# The list object is needed for annotation of probes with ensembl names
-LIST_DATA <- split(PRE_DATA, f = PRE_DATA$Paper) ###!!! <---
-write_lenghts_of_list_objects(LIST_DATA, 'list_data_lenghts_probes.tsv')
-
-write_lenghts_of_list_objects(list_ = LIST_DATA, string_name_of_the_file = 'zbitka_from_prepared_data_lenght.txt')
-
-# How many Probe_IDs should we test to established appropriate microarray for given paper
-
-### Here we make list with number of lists equal to number of experiments
-###!!! <---
-
-### This is just a help-list, it should probably be lower, when it is actually used
-
-##### PREPARING LISTS TO BE USED ##### 
-
-
-
-##### GET THE HIGHEST-HIT-RETURNING ID TYPE ##### 
-### list_LIST_DATA_ format: just the LIST_DATA set in previous lines, vector_of_species_names  format: small letters, english plural of species
 get_the_highest_hit_returning_id_type <- function(list_LIST_DATA_, str_vector_of_species_names, int_Probe_IDs_to_test = 200)
 {
   ### We need to first check appropriate probe ids on smaller dataset and only then do actual annotation, because its too slow otherwise. Hence this shortened list !!! ADD RANDOM SELECTION OF ROWS! !!!
@@ -328,6 +282,49 @@ get_the_highest_hit_returning_id_type <- function(list_LIST_DATA_, str_vector_of
 }
 
 
+
+PRE_DATA <- read_preformated_data("zbitka_from_prepared_data.txt")
+
+#################################################
+##### ANNOTATE PROBE_IDs WITH ENSEMBL NAMES #####
+#################################################
+
+library(tidyverse)
+
+##### PREPARING LISTS TO BE USED ##### 
+
+### Read in the table with description of experiments. They need to have the same identifiers as data in PRE_DATA, that is: Paper(int), Experiment(str)
+descriptions <- readr::read_tsv("descriptions.txt", col_types = "nccccccccccccccccccccccc")
+### List of species names based on data in description files. This is a file we will be working on. Species is in format: small letters, english plural of species
+exp_species <- descriptions %>%
+  select("Paper_ID", "Species") %>%
+  unique() %>%
+  filter(Paper_ID %in% unique(PRE_DATA$Paper))
+  # filter(Paper_ID %in% c(40, 53))
+  # filter(Paper_ID %in% c(1, 2))
+
+
+readr::write_tsv(exp_species, 'exp_species_used_for_testing_which_platform_to_use_probes.tsv')
+
+# The list object is needed for annotation of probes with ensembl names
+LIST_DATA <- split(PRE_DATA, f = PRE_DATA$Paper) ###!!! <---
+write_lenghts_of_list_objects(LIST_DATA, 'list_data_lenghts_probes.tsv')
+
+write_lenghts_of_list_objects(list_ = LIST_DATA, string_name_of_the_file = 'zbitka_from_prepared_data_lenght.txt')
+
+# How many Probe_IDs should we test to established appropriate microarray for given paper
+
+### Here we make list with number of lists equal to number of experiments
+###!!! <---
+
+### This is just a help-list, it should probably be lower, when it is actually used
+
+##### PREPARING LISTS TO BE USED ##### 
+
+
+
+##### GET THE HIGHEST-HIT-RETURNING ID TYPE ##### 
+### list_LIST_DATA_ format: just the LIST_DATA set in previous lines, vector_of_species_names  format: small letters, english plural of species
 
 DATA_FROM_HIGHEST_HIT_ANALYSIS <- get_the_highest_hit_returning_id_type(
   list_LIST_DATA_ = LIST_DATA, 
