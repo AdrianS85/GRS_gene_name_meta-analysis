@@ -1,27 +1,3 @@
-
-FOR_CLUS <- function(data__) 
-{
-  CLU_data__ <- data__ %>%
-    select("GroupID", "ensembl_gene_name", "mean") %>% 
-    spread(key = GroupID, value = mean)  %>%
-    as.data.frame()
-  
-  # We change NAs to 0, because we assume that all genes that we do not have in our data set are not differentially expressed, so logFC should be equal to 0
-  ZEROED_CLU_data__ <- CLU_data__
-  ZEROED_CLU_data__[is.na(ZEROED_CLU_data__)] <- 0 ###!!!
-  
-  # Nie rozumiem zupeĹ‚nie czemu, ale matrixy wariujÄ… jak siÄ™ applyuje im po rowach, data framey dziaĹ‚ajÄ… perfekcyjnie. Anyway, tutaj wyciÄ…gamy do klastrowania tylko geny ktĂłre majÄ… przynajmniej 3 wartoĹ›ci (pomijajÄ…c entrez_gene column)
-  ZEROED_CLU_data__$filter <- apply(X = ZEROED_CLU_data__[,-1], MARGIN = 1, FUN = function (x) 
-  { sum(abs(x) > 0.5) })  ###!!!
-  
-  UP3_ZEROED_CLU_data__ <- dplyr::filter(ZEROED_CLU_data__, filter >= 3)
-  UP3_ZEROED_CLU_data__$filter <- NULL
-  
-  return(UP3_ZEROED_CLU_data__)
-}
-
-
-
 # Class of input is a list. Defaults to writing lenghts of object on first level of depth of the list
 write_lenghts_of_list_objects <- function(list_, string_name_of_the_file, int_length_at_this_depth = 1)
 {
@@ -444,6 +420,47 @@ for (n in WHICH_EXP_TO_ANAL){
 }
 
 
+## Here lets also remove empty lists
+### !!! MANUAL SUPPLEMENTARY STEP - TO BE REMOVED IN FINAL VERSION, AS WE WILL NOT HAVE EMPTY LISTS !!! ###
+# TEST_ANNOTATION[[13]] <-NULL
+
+# Here we bind all list elements into single data table
+SINGLE_TEST_ANNOTATION <- data.table::data.table(rlist::list.rbind(TEST_ANNOTATION), stringsAsFactors = F)
+readr::write_tsv(x = SINGLE_TEST_ANNOTATION, path = "SINGLE_ANNOTATION_probes.tsv")
+
+
+### This will be our input data for further analysis. It contains only significant columns of "Paper", "GroupID", "ensembl_gene_name", "logFC": 
+SHORT_SINGLE_TEST_ANNOTATION <- SINGLE_TEST_ANNOTATION %>%
+  select("Paper", "GroupID", "ensembl_gene_name", "logFC") %>%
+  group_by(Paper, GroupID, ensembl_gene_name) %>%
+  nest()
+
+# I dont know why purrr::map didnt work for this. Either way, we just lapply this. Here we write UP or DOWN for every logFC for given genename in given experiment (not paper)
+SHORT_SINGLE_TEST_ANNOTATION$directionality <- lapply(X = SHORT_SINGLE_TEST_ANNOTATION$data, FUN = function(x) { mutate(x, Symbol_direction = ifelse(logFC > 0, "UP", "DOWN")) } ) 
+
+# Here we count how many UPs and DOWNs are in every given genename in given experiment (not paper)
+SHORT_SINGLE_TEST_ANNOTATION$directionality <- lapply(X = SHORT_SINGLE_TEST_ANNOTATION$directionality, FUN = function (x) {table(select(x, "Symbol_direction"))} ) 
+
+# Here we establish actual status of gene in given experiment
+SHORT_SINGLE_TEST_ANNOTATION$sum_directionality <- as.character(lapply(X = SHORT_SINGLE_TEST_ANNOTATION$directionality, 
+                                                                       FUN = function(x) {
+                                                                         if (length(x) == 1 && grepl(pattern = "UP", names(x))) { "UP" }
+                                                                         else if (length(x) == 1 && grepl(pattern = "DOWN", names(x))) { "DOWN" }
+                                                                         else if (length(x) == 2 && grepl(pattern = "DOWN", names(x)) && grepl(pattern = "DOWN", names(x))) { "MIXED" }
+                                                                         else { "ERROR" }
+                                                                       }))
+
+# Here we remove MIXED expression and multiple genenames
+FILT_SHORT_SINGLE_TEST_ANNOTATION <- SHORT_SINGLE_TEST_ANNOTATION %>%
+  #filter(!grepl(pattern = "(.*);(.*)", SHORT_SINGLE_TEST_ANNOTATION$ensembl_gene_name)) %>%
+  filter(!sum_directionality == "MIXED") %>%
+  filter(!sum_directionality == "ERROR") %>%
+  filter(!is.na(ensembl_gene_name))
+
+# Here we add mean to each !!! Perhaps this should be final input, because it has: 1) removed genes giving UP+DOWN in the same experiment, 2) removed NAs
+STDINPUT_FILT_SHORT_SIN_T_ANNO <- FILT_SHORT_SINGLE_TEST_ANNOTATION %>%
+  mutate(mean = as.numeric(map(data, function(x) { as.numeric(mean(x[[1]]))} ))) %>% ## This way we give actuall vector to function, not a data table(tibble)
+  select("Paper", "GroupID", "ensembl_gene_name", "sum_directionality", "mean") 
 
 
 
