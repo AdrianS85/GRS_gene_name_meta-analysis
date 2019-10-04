@@ -1,3 +1,81 @@
+# required packages:: rentrez, biomaRt, tidyverse (dplyr, purrr, readr), rlist, stringr, data.table, getPass
+devtools::install_github("hadley/lineprof")
+#############################################
+############## FUNCTIONS ####################
+#############################################
+rm(list = ls(pattern = '^int.*'))
+
+kill_corrupted_e_notation <- function(df_temp_data_, str_to_substitute_corrupted_data_with)
+{
+  df_temp_data_$corrupted <- stringr::str_detect(string = df_temp_data_$logFC, pattern = 'e')
+  
+  # Find cells with e-annotation
+  df_temp_data_ <- dplyr::mutate(.data = df_temp_data_, 
+                                 value = if_else(condition = corrupted,
+                                                 true = gsub(
+                                                   pattern = '(.*)e\\Q+\\E', 
+                                                   replacement = '',
+                                                   x = logFC), 
+                                                 false = '0', 
+                                                 missing = '0')
+  )
+  
+  df_temp_data_$value <- as.numeric(df_temp_data_$value)
+  
+  # Set all numbers with e number higher than 2 to constant value
+  df_temp_data_ <- dplyr::mutate(.data = df_temp_data_, 
+                                 logFC = if_else(condition = value > 2,
+                                                 true = str_to_substitute_corrupted_data_with, 
+                                                 false = logFC, 
+                                                 missing = logFC)
+  )
+  
+  df_temp_data_$corrupted <- NULL
+  df_temp_data_$value <- NULL
+  
+  return(df_temp_data_)
+}
+
+
+
+# In col types input floats that can contain either . or , as chars. Later they are converted to numeric based on int_numbers_are_ arguments. Needs at least columns: Paper, Experiment, Probe_Id logFC
+read_preformated_data <- function(str_filename, col_types_ = 'nncccccc', int_numbers_are_from = 6, int_numbers_are_to = 8, str_substitute_inf_with = '15')
+{
+  temp_data <- readr::read_tsv(
+    str_filename, 
+    col_types = col_types_)
+  
+  # Replace , with . to make number actual R numerics
+  temp_data[int_numbers_are_from:int_numbers_are_to] <- lapply(
+    X = temp_data[int_numbers_are_from:int_numbers_are_to], 
+    FUN = function(x) 
+    { stringr::str_replace(
+        string = x, 
+        pattern = ",", 
+        replacement = ".")
+    }) ### COOL CONSTRUCT 
+  
+  # Replace inf values with constant number
+  temp_data[int_numbers_are_from:int_numbers_are_to] <- lapply(
+    X = temp_data[int_numbers_are_from:int_numbers_are_to],
+    FUN = function(x) { gsub(
+      pattern = "^[I|i]nf(.*)", 
+      replacement = str_substitute_inf_with,
+      x = x)})
+  
+  # Replace too large e numbers with constant number
+  temp_data <- kill_corrupted_e_notation(df_temp_data_ = temp_data, str_to_substitute_corrupted_data_with = str_substitute_inf_with)
+  
+  # Change number columns to numeric type
+  temp_data[int_numbers_are_from:int_numbers_are_to] <- lapply(
+    temp_data[int_numbers_are_from:int_numbers_are_to], 
+    as.numeric)
+  
+  return(temp_data)
+}
+
+
+
 # Class of input is a list. Defaults to writing lenghts of object on first level of depth of the list
 write_lenghts_of_list_objects <- function(list_, string_name_of_the_file, int_length_at_this_depth = 1)
 {
@@ -9,29 +87,6 @@ write_lenghts_of_list_objects <- function(list_, string_name_of_the_file, int_le
   write.table(temp2, string_name_of_the_file, sep = '\t')
   rm(temp, temp2)
 } 
-
-
-##### FUNCTION FOR FORMATING DATA FOR CLUSTERING ##### 
-
-read_preformated_data <- function(str_filename, int_numbers_are_from = 8, int_numbers_are_to = 8, col_types_ = 'nncccccc')
-{
-  temp_data <- readr::read_tsv(
-    str_filename, 
-    col_types = col_types_)
-  
-  temp_data[int_numbers_are_from:int_numbers_are_to] <- lapply(
-    X = temp_data[int_numbers_are_from:int_numbers_are_to], 
-    FUN = function(x) { stringr::str_replace(
-      string = x, 
-      pattern = ",", 
-      replacement = ".")}) ### !!! THIS IS VERY COOL CONSTRUCT THAT I NEED TO NOTE!!
-  
-  temp_data[int_numbers_are_from:int_numbers_are_to] <- lapply(
-    temp_data[int_numbers_are_from:int_numbers_are_to], 
-    as.numeric)
-  
-  return(temp_data)
-}
 
 
 
@@ -51,7 +106,7 @@ set_mart_to_be_used <- function(str_vector_of_species_names_, int_loop = 1)
                          dataset = "hsapiens_gene_ensembl"),
                        "squirrelmonkeys" = biomaRt::useMart(
                          "ENSEMBL_MART_ENSEMBL", 
-                         dataset = "sboliviensis_gene_ensembl"))
+                         dataset = "sbboliviensis_gene_ensembl"))
   
   message( paste0('Mart set as ', usedMart__@dataset, ' for step ', int_loop) )
   return(usedMart__)
@@ -60,11 +115,11 @@ set_mart_to_be_used <- function(str_vector_of_species_names_, int_loop = 1)
 
 
 ### 
-get_the_potental_identifiers <- function(usedMart___)
+get_the_potental_identifiers <- function(usedMart___, int_loop_nb)
 {
   # Here we extract all the potential gene identifiers
   ##### !!! THIS MAY NEED FURTHER WORK !!! ##### 
-  message( paste0('Extracting potental_identifiers for step ', n) )
+  message( paste0('Extracting potental_identifiers for step ', int_loop_nb) )
   
   potental_identifiers <- c(usedMart___@filters[grep(pattern = "^ensembl(.*)", usedMart___@filters[[1]]) , 1], 
                             usedMart___@filters[grep(pattern = "^refseq(.*)", usedMart___@filters[[1]]) , 1], 
@@ -72,10 +127,11 @@ get_the_potental_identifiers <- function(usedMart___)
                             usedMart___@filters[grep(pattern = "^agilent(.*)", usedMart___@filters[[1]]) , 1], 
                             usedMart___@filters[grep(pattern = "^illumina(.*)", usedMart___@filters[[1]]) , 1])
   
-  message( paste0('Potental identifiers for step ', n, 'extracted') )
+  message( paste0('Potental identifiers for step ', int_loop_nb, 'extracted') )
   
   return(potental_identifiers)
 }
+
 
 
 set_0_hit_annotations_to_na <- function(list_of_dataframes) 
@@ -91,35 +147,33 @@ set_0_hit_annotations_to_na <- function(list_of_dataframes)
 }
 
 
-# testusemart <- biomaRt::useMart("ENSEMBL_MART_ENSEMBL", dataset = "mmusculus_gene_ensembl")
-# testfilters <- biomaRt::listFilters(mart = testusemart)
 
-set_identifiers_used_for_annotation_if_not_probeID <- function(str_identifier_type, list_LIST_DATA = LIST_DATA, identifiers_used_for_annotation_if_probeID_is_used = DATA_FROM_HIGHEST_HIT_ANALYSIS[[2]])
+# usedMart <- biomaRt::useMart(biomart = "ENSEMBL_MART_ENSEMBL", dataset = "mmusculus_gene_ensembl")
+# filters <- biomaRt::listFilters(mart = usedMart)
+set_identifiers_used_for_annotation_if_not_probeID <- function(str_identifier_type, list_LIST_DATA, identifiers_used_for_annotation_if_probeID_is_used = DATA_FROM_HIGHEST_HIT_ANALYSIS[[2]])
 {
   if(str_identifier_type == 'Probe_ID')
   {
     return(identifiers_used_for_annotation_if_probeID_is_used)
   }
+  else if(str_identifier_type %in% c('ensembl_gene_id', 'ensembl_transcript_id', 'entrezgene_id', 'refseq_mrna', 'refseq_mrna_predicted', 'embl'))
+  {
+    return( rep(str_identifier_type, length(list_LIST_DATA)) )
+  }
   else
   {
-    
-    switch(str_identifier_type,
-           "ensembl_g" = return( rep(str_identifier_type, length(LIST_DATA)) ),
-           "genebank_ID" = return( rep(str_identifier_type, length(LIST_DATA)) ),
-           "Gene_ID" = return( rep(str_identifier_type, length(LIST_DATA)) ),
-           "external_gene_name" = return( rep('external_gene_name', length(LIST_DATA)))
-    )
+    stop("Identifier type not recognized")
   }
-  
 }
 
 
 
 change_name_to_proper_format_given_the_species <- function(df_name, str_species)
 {
+  df_name$Old_Probe_ID <- df_name$Probe_ID
+  
   if(str_species %in% c('mice', 'rats'))
   {
-    
     temp1 <- subset(x = df_name, str_detect(string = df_name$Probe_ID, pattern = '(?i)(loc)|(rgd)')) #case insensitive
     temp2 <- subset(x = df_name, str_detect(string = df_name$Probe_ID, pattern = '(?i)(rik)'))
     temp3 <- subset(x = df_name, !str_detect(string = df_name$Probe_ID, pattern = '(?i)(rik)|(loc)|(rgd)')) 
@@ -146,59 +200,43 @@ change_name_to_proper_format_given_the_species <- function(df_name, str_species)
 }
 
 
-#This function is used to query ncbi-gene db and return first (best, most current?) gene-id identifier
-search_for_ids_in_ncbi <- function(str_vector_of_ids)
-{
-  ids <- list()
-  counter <- 1
-  for (id_ in str_vector_of_ids)
-  {
-    print(id_)
-    print(counter)
-    
-    ids[[counter]] <- rentrez::entrez_search(db="gene", term = id_)
-    
-    counter = counter + 1
-    
-    Sys.sleep(0.5)
-  }
-  return(ids)
-}
 
-
-#This function should except output of search_for_ids function. BEWARE - this only returns first geneID found
-make_table_with_original_and_ncbi_ids <- function(list_returned_by_entrez_gene_search)
+get_proper_length_vector_for_checking_annotation_percentage <- function(list_LIST_DATA__, int_Probe_IDs_to_test_)
 {
-  temp_list <- list()
-  for (n in seq(length(list_returned_by_entrez_gene_search)))
+  temp <- list()
+  for (n in seq_along(list_LIST_DATA__))
   {
-    temp_list[[n]] <- ''
-    
-    if (length(list_returned_by_entrez_gene_search[[n]]$ids) != 0)
+    if(length(list_LIST_DATA__[[n]][[1]]) <= int_Probe_IDs_to_test_)
     {
-      temp_list[[n]][[1]] <- list_returned_by_entrez_gene_search[[n]]$ids[[1]]
-    } 
+      temp[n] <- length(list_LIST_DATA__[[n]][[1]])
+    }
     else
     {
-      temp_list[[n]][[1]] <- 'none'
+      temp[n] <- int_Probe_IDs_to_test_
     }
-    temp_name <- list_returned_by_entrez_gene_search[[n]]$QueryTranslation
-    
-    
-    temp_list[[n]][[2]] <- gsub(
-      pattern = "(\\[All Fields\\])|\\)|\\(", 
-      replacement = '', 
-      x = list_returned_by_entrez_gene_search[[n]]$QueryTranslation)
   }
-  
-  temp_df <- as.data.frame(rlist::list.rbind(temp_list))
-  colnames(temp_df) <- c('ncbi_response', 'query')
-  
-  return(temp_df)
+  return(rlist::list.rbind(temp))
 }
 
-get_the_highest_hit_returning_id_type <- function(list_LIST_DATA_, str_vector_of_species_names, int_Probe_IDs_to_test = 200)
+
+
+### list_LIST_DATA_ format: just the LIST_DATA set in previous lines, str_vector_of_species_names  format: small letters, english plural of species. str_vector_of_species_names includes names for species for each experiment in list data. str_vector_of_experiment_ids includes names which identifiy any given experiment
+get_the_highest_hit_returning_id_type <- function(str_LIST_DATA_name, descriptions_ = descriptions, int_Probe_IDs_to_test = 200, str_experiment_name = experiment_name)
 {
+  PRE_DATA <- read_preformated_data(str_filename = str_LIST_DATA_name)
+  
+  exp_species <- descriptions_ %>%
+    dplyr::select("Paper_ID", "Species") %>%
+    unique() %>%
+    dplyr::filter(Paper_ID %in% unique(PRE_DATA$Paper))
+  
+  str_vector_of_species_names <- exp_species$Species
+  
+  str_vector_of_experiment_ids <- exp_species$Paper_ID
+  
+  
+  list_LIST_DATA_ <- split(PRE_DATA, f = PRE_DATA$Paper)
+  
   ### We need to first check appropriate probe ids on smaller dataset and only then do actual annotation, because its too slow otherwise. Hence this shortened list !!! ADD RANDOM SELECTION OF ROWS! !!!
   
   SHORT_LIST_DATA <- lapply(X = list_LIST_DATA_, FUN = function(x){ x[1:int_Probe_IDs_to_test,] })
@@ -211,7 +249,7 @@ get_the_highest_hit_returning_id_type <- function(list_LIST_DATA_, str_vector_of
     ##### !!! THIS NEEDS TO BE MANUALLY ESTABLISHED BASE ON exp_species !!! ##### 
     usedMart_ <- set_mart_to_be_used(str_vector_of_species_names_ = str_vector_of_species_names[n], int_loop = n)
     
-    potental_identifiers <- get_the_potental_identifiers(usedMart___ = usedMart_)
+    potental_identifiers <- get_the_potental_identifiers(usedMart___ = usedMart_, int_loop_nb = n)
     
     
     
@@ -259,130 +297,468 @@ get_the_highest_hit_returning_id_type <- function(list_LIST_DATA_, str_vector_of
   HIGHEST_HIT_LIST <- rep(list(list()), times = length(SHORT_LIST_DATA))
   
   # Here we are getting all of the highest yielding IDs
-  for(n in seq_along(LIST_DATA)){
+  for(n in seq_along(list_LIST_DATA_)){
     for(m in seq_along(which(df_all_ID_annotations[[n]] == max(df_all_ID_annotations[[n]])))){
       HIGHEST_HIT_LIST[[n]][[m]] <- ANNOT_SHORT_LIST_DATA[[n]][[(which(df_all_ID_annotations[[n]] == max(df_all_ID_annotations[[n]]))[m])]]
     } }
   
   rm(df_all_ID_annotations)
   
-  # This is list allowing us to check how many hits did we get for highest-yielding feature for given experiment
-  check_annotation_percentage <- lapply(HIGHEST_HIT_LIST, FUN = function(x) {  length(x[[1]][[1]]) / int_Probe_IDs_to_test })
+
+  proper_length_vector_for_checking_annotation_percentage <- get_proper_length_vector_for_checking_annotation_percentage(list_LIST_DATA__ = list_LIST_DATA_, int_Probe_IDs_to_test_ = int_Probe_IDs_to_test) 
+  check_annotation_percentage <- purrr::map2(
+    .x = HIGHEST_HIT_LIST, 
+    .y = proper_length_vector_for_checking_annotation_percentage, 
+    .f = function(.x, .y) {  (length(.x[[1]][[1]]) / .y) * 100 }
+  )
+  check_annotation_percentage <- data.frame(str_vector_of_experiment_ids, rlist::list.rbind(check_annotation_percentage))
+  colnames(check_annotation_percentage) <- c('Exp_ID', 'highest_annotated_identifier_percentages')
+  readr::write_tsv(check_annotation_percentage, paste0(str_experiment_name, '/', 'highest_annotated_identifier_percentages.tsv'))
   
   # Here we simply copy/establish names of features, that were highest by themselves. The conditions ask: 1) is there at least a single hit with highest number (I dont know if there can be 0 though...) 2) Is the first (and though each) highest hit list has at least single hit?
   NAMES_HIGHEST_HIT_LIST <- lapply(X = HIGHEST_HIT_LIST, FUN = set_0_hit_annotations_to_na)
-  
-  readr::write_tsv(as.data.frame(NAMES_HIGHEST_HIT_LIST), 'data_on_which_platform_to_use_for_probes_based_probes.tsv')
+  NAMES_HIGHEST_HIT_LIST <- data.frame(str_vector_of_experiment_ids, rlist::list.rbind(NAMES_HIGHEST_HIT_LIST))
+  colnames(NAMES_HIGHEST_HIT_LIST) <- c('Exp_ID', 'platform_to_use')
+  readr::write_tsv(NAMES_HIGHEST_HIT_LIST, paste0(str_experiment_name, '/', 'platform_to_use_for_probes_based_analysis.tsv'))
   
   ###### Here we estalish correct lists to analyzed in further steps (currently - need to remove experiments with microarrays not captured in ensembl) ######
   ###### Yeah, i dont know what to do here
-  WHICH_EXP_TO_ANAL <- seq_along(NAMES_HIGHEST_HIT_LIST)
+  WHICH_EXP_TO_ANAL <- seq_along(NAMES_HIGHEST_HIT_LIST[[1]])
   
   return(list(WHICH_EXP_TO_ANAL, NAMES_HIGHEST_HIT_LIST, HIGHEST_HIT_LIST, ANNOT_SHORT_LIST_DATA, all_ID_annotations))
 }
 
 
 
-PRE_DATA <- read_preformated_data("zbitka_from_prepared_data.txt")
+### Annotate unidentified, !!!but unique!!! gene identifiers to gene-id using ncbi gene database. We can query ncbi databases only 3 times per second - that is the reason for sys.sleep time! A
+search_for_ids_in_ncbi <- function(str_vector_of_ids)
+{
+  ids <- list()
+  counter <- 1
+  for (id_ in str_vector_of_ids)
+  {
+    print(id_)
+    print(counter)
+    
+    ids[[counter]] <- rentrez::entrez_search(db="gene", term = id_)
+    
+    counter = counter + 1
+    
+    Sys.sleep(0.4)
+  }
+  return(ids)
+}
+
+
+
+#This function should except output of search_for_ids function. BEWARE - this only returns first geneID found
+make_and_write_table_with_original_and_ncbi_ids <- function(df_returned_by_entrez_gene_search, df_original_data, str_name_of_the_file = 'generic.tsv', experiment_directory_name = '.')
+{
+  temp_list <- list()
+  for (n in seq(length(df_returned_by_entrez_gene_search)))
+  {
+    temp_list[[n]] <- ''
+    
+    if (length(df_returned_by_entrez_gene_search[[n]]$ids) != 0)
+    {
+      temp_list[[n]][[1]] <- df_returned_by_entrez_gene_search[[n]]$ids[[1]]
+    } 
+    else
+    {
+      temp_list[[n]][[1]] <- 'none'
+    }
+    temp_name <- df_returned_by_entrez_gene_search[[n]]$QueryTranslation
+    
+    
+    temp_list[[n]][[2]] <- gsub(
+      pattern = "(\\[All Fields\\])|\\)|\\(", 
+      replacement = '', 
+      x = df_returned_by_entrez_gene_search[[n]]$QueryTranslation)
+  }
+  
+  
+  temp_df <- as.data.frame(rlist::list.rbind(temp_list))
+  colnames(temp_df) <- c('ncbi_response', 'Probe_ID')
+  
+  temp_df <- merge(x = df_original_data, y = temp_df, by = 'Probe_ID', all.x = T)
+  temp_df <- unique(temp_df)
+  
+  readr::write_tsv(temp_df, paste0(experiment_directory_name, '/', str_name_of_the_file))
+  
+  return(temp_df)
+}
+
+
+
+# str_platforms_ids_to_download are in GEO format
+download_platforms_from_gemma <- function(str_platforms_ids_to_download)
+{
+  username_ <- readline(prompt = "Gimme Your GEMMA username: ")
+  password_ <- getPass::getPass(msg = "Gimme Your GEMMA password: ")
+  
+  gemmaAPI::setGemmaUser(username = username_, password = password_)
+  
+  temp_list <- list()
+  
+  temp_list <- lapply(X = str_platforms_ids_to_download, FUN = function(X)
+  {
+    gemmaAPI::platformInfo(platform = X, 
+                           request = 'annotations')
+  })
+  
+  gemmaAPI::setGemmaUser()
+  
+  return(temp_list)
+}
+
+
+
+# list_gemma_platforms is list of annotations for platforms in list_LIST_DATA downloaded from gemma: a result from download_platforms_from_gemma function
+get_gemma_annotations_for_data <- function(list_LIST_DATA, list_gemma_platforms)
+{
+  library(dplyr)
+  temp_list <- purrr::map2(.x = list_LIST_DATA, .y = list_gemma_platforms, .f = function(.x, .y)
+  {
+    merge(x = .x, y = .y, by.x = 'Probe_ID', by.y = 'ProbeName', all.x = T) %>%
+      dplyr::select(Probe_ID:GeneSymbols)
+  })
+  
+  return(temp_list)
+}
+
+
+
+write_lists <- function(list_LIST_DATA, str_experiment_name, str_description)
+{
+  temp_df <- rlist::list.rbind(list_LIST_DATA)
+  readr::write_tsv(temp_df, paste0(str_experiment_name, 'table_', str_description, '.tsv'))
+}
+
+
+
+merge_and_remove_nas_from_list_post_annotation <- function(list_annotated_LIST_DATA, str_name_of_column_containing_annotated_gene_symbols)
+{
+  temp_df <- rlist::list.rbind(list_annotated_LIST_DATA)
+  temp_df <- subset(x = temp_df, subset = !is.na(temp_df[[str_name_of_column_containing_annotated_gene_symbols]]) )
+  return(temp_df)
+}
+
+
+
+annotate_now <- function(list_LIST_DATA_ = LIST_DATA, str_identifier_type_, str_vector_of_species_names__, experiment_name_)
+{
+  WHICH_EXP_TO_ANAL <- seq( length(list_LIST_DATA_) )
+  ANNOT_LIST_DATA <- list()
+  
+  if(length(str_identifier_type_) != 1)
+  {
+    identifiers_used_for_annotation <- str_identifier_type_
+  }
+  else
+  {
+  identifiers_used_for_annotation <- set_identifiers_used_for_annotation_if_not_probeID(str_identifier_type = str_identifier_type_, list_LIST_DATA = list_LIST_DATA_)
+  }
+  
+  for (n in WHICH_EXP_TO_ANAL)
+  {
+    
+    usedMart_ = set_mart_to_be_used(str_vector_of_species_names_ = str_vector_of_species_names__[n], int_loop = n)
+    
+    message( paste0('Annotating experiment ', names(list_LIST_DATA_[n]), ' in step ', n, '...') )    
+    ANNOT_LIST_DATA[[n]] <- biomaRt::getBM(
+      attributes = c(identifiers_used_for_annotation[[n]], "external_gene_name"),
+      filters = identifiers_used_for_annotation[[n]],
+      values = list_LIST_DATA_[[n]]$Probe_ID, 
+      uniqueRows = F,
+      mart = usedMart_)
+  }
+
+  FINAL_ANNOT_LIST_DATA <- purrr::pmap(.l = list(list_LIST_DATA_, ANNOT_LIST_DATA, identifiers_used_for_annotation), 
+                                       .f = function(.x, .y, .z)
+                                       {
+                                         merge(x = .x, 
+                                               y = .y, 
+                                               by = 'Probe_ID', 
+                                               by.y = .z, ### HERE BE ERROR
+                                               all.x = T)
+                                       })
+  
+  DF_FINAL_ANNOT_LIST_DATA <- rlist::list.rbind(FINAL_ANNOT_LIST_DATA)
+  
+  ### This is the correct way to uniqualize the resulting dataframes ### 
+  DF_FINAL_ANNOT_LIST_DATA <- DF_FINAL_ANNOT_LIST_DATA[unique(DF_FINAL_ANNOT_LIST_DATA$Nb),]
+
+  readr::write_tsv(DF_FINAL_ANNOT_LIST_DATA, paste0(experiment_name_, 'annotated_data_from_', identifiers_used_for_annotation[1], '.tsv'))
+  
+  return(DF_FINAL_ANNOT_LIST_DATA)
+}
+
+
+
+set_experiment_name_and_create_directory_for_output <- function(str_identifier_type___, backup_experiment_name_)
+{
+  if(length(str_identifier_type___) != 1)
+  {
+    temp_experiment_directory_name = paste0(backup_experiment_name_, '/')
+    temp_str_identifier_name <- backup_experiment_name_
+  }
+  else
+  {
+    temp_experiment_directory_name <- paste0(str_identifier_type___, '/')
+    temp_str_identifier_name <- str_identifier_type___
+  }
+  
+  print(paste0('Trying to create directory "', temp_experiment_directory_name, '". Ignore warning that the directory exists. It does not interfere with its creation. No need for if statements here.'))
+  dir.create(temp_experiment_directory_name, temp_str_identifier_name)
+
+  temp_both_names <- list(temp_experiment_directory_name, temp_str_identifier_name)
+  
+  return(temp_both_names)
+}
+
+
+
+# We can pass two types of data into str_identifier_name: 1) one-element string vector, which is the same name as filter name in biomartr-ensembl database. 2) vector of strings with filter name for each experiment dataset in the list of experiments
+master_annotator_for_known_identfiers <- function(descriptions_, str_filename_, str_identifier_type__, backup_experiment_name)
+{
+
+  # We use %>% operator somewhere in this, or downstream function
+  library(dplyr)
+
+  list_experiment_directory_name_and_identifier_type <- set_experiment_name_and_create_directory_for_output(str_identifier_type__, backup_experiment_name)
+    
+  
+  PRE_DATA__ <- read_preformated_data(str_filename = str_filename_, int_numbers_are_from = 6, int_numbers_are_to = 8, col_types_ = 'nncccccc')
+  
+  LIST_DATA__ <- split(PRE_DATA__, f = PRE_DATA__$Paper)
+  
+  readr::write_tsv(rlist::list.rbind(LIST_DATA__), paste0(list_experiment_directory_name_and_identifier_type[[1]], 'input_for_', list_experiment_directory_name_and_identifier_type[[2]], '.tsv'))
+  
+  # List of species names based on data in description files. This is a file we will be working on. Species is in format: small letters, english plural of species
+  exp_species__ <- descriptions_ %>%
+    dplyr::select("Paper_ID", "Species") %>%
+    unique() %>%
+    dplyr::filter(Paper_ID %in% unique(PRE_DATA__$Paper))
+  
+  write_lenghts_of_list_objects(LIST_DATA__, paste0(list_experiment_directory_name_and_identifier_type[[1]], 'list_data_lenghts_probes.tsv')) 
+  readr::write_tsv(exp_species__, paste0(list_experiment_directory_name_and_identifier_type[[1]], 'exp_species_used_for_testing_which_platform_to_use_probes.tsv'))
+
+  annotation <- annotate_now(list_LIST_DATA_ = LIST_DATA__, str_identifier_type_ = str_identifier_type__, str_vector_of_species_names__ = exp_species__$Species, experiment_name_ = list_experiment_directory_name_and_identifier_type[[1]])
+  
+  return(annotation)
+}
+
+
+
+annotate_identifiers_to_geneID <- function(str_filename_, str_experiment_name, descriptions_, bool_reformat_names = F)
+{
+  data <- read_preformated_data(str_filename = str_filename_, int_numbers_are_from = 6, int_numbers_are_to = 8, col_types_ = 'nncccccc')
+  
+  directory_name <- paste0(str_experiment_name, '/')
+  
+  dir.create(directory_name)
+  
+  strvec_ncbi_query_for_identifers <- search_for_ids_in_ncbi(as.vector(data$Probe_ID))
+  
+  if(bool_reformat_names == T)
+  {
+    print( paste0('Do not use this option. In its current implementation it does the opposite of helping. Moreover, the data I have is proper and does not need reformating') )
+    # exp_species <- descriptions_ %>%
+    #   select("Paper_ID", "Species") %>%
+    #   unique() %>%
+    #   filter(Paper_ID %in% unique(data$Paper))
+    # 
+    # readr::write_tsv(x = exp_species, path = paste0(directory_name, str_experiment_name, '_species_used_for_analysis.tsv'))
+    # 
+    # list_data <- purrr::map2(.x = split(data, f = data$Paper), .y = exp_species$Species, .f = ~ change_name_to_proper_format_given_the_species(.x, .y))
+    # 
+    # data <- rlist::list.rbind(list_data)
+    # 
+    # rm(list_data)
+  }
+  
+  ### Annotate unidentified, !!!but unique!!! gene identifiers to gene-id using ncbi gene database  
+  annotated_data <- make_and_write_table_with_original_and_ncbi_ids(df_returned_by_entrez_gene_search = strvec_ncbi_query_for_identifers, df_original_data = data, str_name_of_the_file = paste0(str_experiment_name, '.tsv'), experiment_directory_name = directory_name)
+  
+  return(annotated_data)
+}
+
+
+
+gather_all_datasets_into_single_df <- function(regex_pattern_to_find_datasets_with = '^annotations.*')
+{
+  
+  dataset_names <- as.list(parse(text = ls(pattern = regex_pattern_to_find_datasets_with, name = globalenv())))
+  datasets_list <- do.call(what = 'list', args = dataset_names)
+  datasets_df <- rlist::list.rbind(datasets_list)
+  return(datasets_df)
+}
+
+
+
+
+#############################################
+############## FUNCTIONS ####################
+#############################################
+
+
+
+##########################################################
+##### PIPELINE FOR PROBES ################################
+##########################################################
+
+
 
 #################################################
 ##### ANNOTATE PROBE_IDs WITH ENSEMBL NAMES #####
 #################################################
 
-library(tidyverse)
 
-##### PREPARING LISTS TO BE USED ##### 
 
-### Read in the table with description of experiments. They need to have the same identifiers as data in PRE_DATA, that is: Paper(int), Experiment(str)
+######### PREPARING METADATA ######### 
+
+library(dplyr)
+
+### Read in the table with description of experiments. They need to have the same identifiers as data in PRE_DATA, that is: Paper(int), Experiment(str). Also needs 'Species' column, if probe_id identification function is to be used
 descriptions <- readr::read_tsv("descriptions.txt", col_types = "nccccccccccccccccccccccc")
-### List of species names based on data in description files. This is a file we will be working on. Species is in format: small letters, english plural of species
-exp_species <- descriptions %>%
-  select("Paper_ID", "Species") %>%
-  unique() %>%
-  filter(Paper_ID %in% unique(PRE_DATA$Paper))
-  # filter(Paper_ID %in% c(40, 53))
-  # filter(Paper_ID %in% c(1, 2))
 
-
-readr::write_tsv(exp_species, 'exp_species_used_for_testing_which_platform_to_use_probes.tsv')
-
-# The list object is needed for annotation of probes with ensembl names
-LIST_DATA <- split(PRE_DATA, f = PRE_DATA$Paper) ###!!! <---
-write_lenghts_of_list_objects(LIST_DATA, 'list_data_lenghts_probes.tsv')
-
-write_lenghts_of_list_objects(list_ = LIST_DATA, string_name_of_the_file = 'zbitka_from_prepared_data_lenght.txt')
-
-# How many Probe_IDs should we test to established appropriate microarray for given paper
-
-### Here we make list with number of lists equal to number of experiments
-###!!! <---
-
-### This is just a help-list, it should probably be lower, when it is actually used
-
-##### PREPARING LISTS TO BE USED ##### 
+######### PREPARING METADATA ######### 
 
 
 
-##### GET THE HIGHEST-HIT-RETURNING ID TYPE ##### 
-### list_LIST_DATA_ format: just the LIST_DATA set in previous lines, vector_of_species_names  format: small letters, english plural of species
+##### PROBE ID - GET THE HIGHEST-HIT-RETURNING ID TYPE, THEN ANNOTATE ##### 
+
 
 DATA_FROM_HIGHEST_HIT_ANALYSIS <- get_the_highest_hit_returning_id_type(
-  list_LIST_DATA_ = LIST_DATA, 
-  str_vector_of_species_names = exp_species$Species)
+  str_LIST_DATA = 'data_v4_Probe_ID.tsv', 
+  descriptions_ = descriptions,
+  int_Probe_IDs_to_test = 200,
+  str_experiment_name = 'Probe_ID')
 
-WHICH_EXP_TO_ANAL <- DATA_FROM_HIGHEST_HIT_ANALYSIS[[1]]
-# identifiers_used_for_annotation <- DATA_FROM_HIGHEST_HIT_ANALYSIS[[2]]
+identifiers_used_for_annotation_global <- as.character(DATA_FROM_HIGHEST_HIT_ANALYSIS[[2]]$platform_to_use)
+identifiers_used_for_annotation_global <- readr::read_tsv('Probe_ID/platform_to_use_for_probes_based_analysis.tsv')$platform_to_use
 
-temp2 <- as.data.frame( rlist::list.rbind(ANNOT_SHORT_LIST_DATA) )
+annotations_Probe_ID <- master_annotator_for_known_identfiers(descriptions_ = descriptions, str_filename_ = 'data_v4_Probe_ID.tsv', str_identifier_type__ = identifiers_used_for_annotation_global, backup_experiment_name = 'Probe_ID') # 195495 vs 195495
 
-
-##### GET THE HIGHEST-HIT-RETURNING ID TYPE #####
-
-# I dont know how to pass column names via string and $ operator. [''] way doesnt work. So I guess im stuck with hard-coding it for now.
-# this part also needs to have a capitalized first letter
+##### PROBE ID - GET THE HIGHEST-HIT-RETURNING ID TYPE, THEN ANNOTATE ##### 
 
 
 
+####### GEMMA ANNOTATION (31/33) ####### 
 
+platforms_ids_to_download <- readr::read_tsv('data_v4_gemma_platforms.tsv')
 
-LIST_DATA <- split(PRE_DATA, f = PRE_DATA$Paper) ###!!! <---
+gemma_platforms <- download_platforms_from_gemma(platforms_ids_to_download$Platform_ID)
 
-LIST_DATA <- purrr::map2(.x = LIST_DATA, .y = exp_species$Species, .f = ~ change_name_to_proper_format_given_the_species(.x, .y))
+gemma_anotated_data <- get_gemma_annotations_for_data(LIST_DATA, gemma_platforms)
 
-temp <- rlist::list.rbind(LIST_DATA)
-readr::write_tsv(temp, 'data_v3_names_rn_better_names.txt')
+write_lists(gemma_anotated_data, experiment_name, str_description = 'raw_gemma_annotations')
 
+noNAs_gemma_anotated_data <- merge_and_remove_nas_from_list_post_annotation(gemma_anotated_data, 'GeneSymbols')
 
-###### PROBE_ID ANNOTATION WITH ENSEMBL GENE NAMES ###### 
-WHICH_EXP_TO_ANAL <- seq( length(LIST_DATA) )
-ANNOT_LIST_DATA <- list()
-identifiers_used_for_annotation <- set_identifiers_used_for_annotation_if_not_probeID('external_gene_name')
-# identifiers_used_for_annotation <- rep('external_gene_name', length(LIST_DATA))
-try(
-  {
-    for (n in WHICH_EXP_TO_ANAL){
-      
-      usedMart_ = set_mart_to_be_used(str_vector_of_species_names_ = exp_species$Species[n], int_loop = n)
-      
-      message( paste0('Starting ANNOT_LIST_DATA step for ', n) )    
-      ANNOT_LIST_DATA[[n]] <- biomaRt::getBM(
-        attributes = c(identifiers_used_for_annotation[[n]], "external_gene_name"),
-        filters = identifiers_used_for_annotation[[n]],
-        values = LIST_DATA[[n]]$Probe_ID,
-        uniqueRows = F,
-        mart = usedMart_)
-      
-      message( paste0('Competed usedMart step for ', n) )
-    }
-  }
-)
+readr::write_tsv(noNAs_gemma_anotated_data, paste0(experiment_name, 'annotated_gemma_ids_noNAs.tsv'))
+
+####### GEMMA ANNOTATION (31/33) ####### 
 
 
 
+####### KNOWN IDENTIFIERS ####### 
+# 'ensembl_gene_id', 'ensembl_transcript_id', 'entrezgene_id', 'refseq_mrna', 'refseq_mrna_predicted', 'embl'
 
-### !!! INTER-SPECIES GENE-NAME STANDARDIZATION? !!! ###
+#All this needs to be repeated with data redone
+annotations_ensembl_gene_id <- master_annotator_for_known_identfiers(descriptions_ = descriptions, str_filename_ = 'data_v4_ensembl_gene_id.tsv', str_identifier_type__ = 'ensembl_gene_id') #20007 vs 20007
 
-###### PROBE_ID ANNOTATION WITH ENSEMBL GENE NAMES ###### 
+annotations_ensembl_transcript_id <- master_annotator_for_known_identfiers(descriptions_ = descriptions, str_filename_ = 'data_v4_ensembl_transcript_id.tsv', str_identifier_type__ = 'ensembl_transcript_id') #2422 vs 2422
+
+annotations_entrezgene_id <- master_annotator_for_known_identfiers(descriptions_ = descriptions, str_filename_ = 'data_v4_entrezgene_id.tsv', str_identifier_type__ = 'entrezgene_id') #29345 vs 29345
+
+annotations_refseq_mrna <- master_annotator_for_known_identfiers(descriptions_ = descriptions, str_filename_ = 'data_v4_refseq_mrna.tsv', str_identifier_type__ = 'refseq_mrna') #4710 vs 4710
+
+annotations_refseq_mrna_predicted <- master_annotator_for_known_identfiers(descriptions_ = descriptions, str_filename_ = 'data_v4_refseq_mrna_predicted.tsv', str_identifier_type__ = 'refseq_mrna_predicted') #464 vs 464
+
+annotations_embl <- master_annotator_for_known_identfiers(descriptions_ = descriptions, str_filename_ = 'data_v4_for_ncbi.tsv', str_identifier_type__ = 'embl') #This one does not work
+
+####### KNOWN IDENTIFIERS ####### 
+
+
+
+####### OTHER (FOR_NCBI) IDENTIFIERS ####### 
+
+annotated_other_ids_to_geneIDs <- annotate_identifiers_to_geneID(str_filename_ = 'data_v4_other_ids.tsv', str_experiment_name = 'other_ids', descriptions_ = descriptions) #2411 vs 
+
+####### OTHER (FOR_NCBI) IDENTIFIERS ####### 
+
+
+
+####### GENE NAME IDENTIFIERS ####### 
+
+annotated_names_to_geneIDs <- annotate_identifiers_to_geneID(str_filename_ = 'data_v4_names.tsv', str_experiment_name = 'names', descriptions_ = descriptions, bool_reformat_names = F) #637 vs 637
+
+####### GENE NAME IDENTIFIERS ####### 
+
+
+
+####### PREPARING FINAL TABLE ####### 
+
+merged_dataset <- gather_all_datasets_into_single_df(regex_pattern_to_find_datasets_with = '^annotations.*')
+
+
+
+experiment_merged_dataset <- merged_dataset %>%
+  dplyr::select(Experiment, external_gene_name, logFC) 
+
+list_experiment_merged_dataset <- split(x = experiment_merged_dataset, experiment_merged_dataset$Experiment)
+
+# Name logFC column with Experiment name, remove Experiment name (since its no longer needed, uniform genenames.)
+forMerging_list_experiment_merged_dataset <- list()
+forMerging_list_experiment_merged_dataset <- lapply(X = list_experiment_merged_dataset, FUN = function(x)
+{  
+  temp <- x$Experiment[[1]]
+  colnames(x) <- c(colnames(x[1]), colnames(x[2]), temp)
+  x[1] <- NULL
+  x$external_gene_name <- tolower(x$external_gene_name)
+  return(x)
+})
+
+## How to use disk space instead of memory
+test <- purrr::reduce(.x = forMerging_list_experiment_merged_dataset, .f = left_join, by = 'external_gene_name')
+#If you could not afford AWS not RAM, you could use bigmemory  package(and some other big family packages ) to release stress on system RAM and a combination of doParallel and foreach package for parallelized computation for faster computation. This takes me about two days to figure things out. 
+# http://www.johnmyleswhite.com/notebook/2011/10/31/using-sparse-matrices-in-r/
+# https://www.r-bloggers.com/build-predictive-model-on-big-data-using-r-and-mysql-part-1/
+# http://adv-r.had.co.nz/memory.html
+# https://www.r-bloggers.com/handling-large-datasets-in-r/
+# https://www.slideshare.net/bytemining/r-hpc
+# https://www.researchgate.net/post/How_can_I_increase_memory_size_and_memory_limit_in_R
+# https://r.789695.n4.nabble.com/Allocate-virtual-memory-on-hard-drive-td4660943.html
+# https://stackoverflow.com/questions/39876328/forcing-r-and-rstudio-to-use-the-virtual-memory-on-windows
+####### PREPARING FINAL TABLE ####### 
+
+
+
+pryr::mem_used()
+pryr::object_size(merged_dataset)
+pryr::mem_change(rm(merged_dataset))
+
+
+
+
+
+
+# ### This may not actually be needed, since we have the same number of rows ininput and in output. That means, that single ID gives exactly one, best genename? collapse_all_gene_names_for_given_probe 
+# 
+# for (n in WHICH_EXP_TO_ANAL)
+# {
+#   UNIQ_ANNOT_LIST_DATA[[n]] <- aggregate(
+#     ensembl_gene_name~Probe_ID, 
+#     data = UNIQ_ANNOT_LIST_DATA[[n]], 
+#     FUN = stringr::str_c) ## Here we aggregate the genenames into single row
+#   UNIQ_ANNOT_LIST_DATA[[n]]$ensembl_gene_name <- lapply(
+#     X = UNIQ_ANNOT_LIST_DATA[[n]]$ensembl_gene_name, 
+#     FUN = paste, 
+#     collapse = "; ") ##
+#   UNIQ_ANNOT_LIST_DATA[[n]]$ensembl_gene_name <- as.character(UNIQ_ANNOT_LIST_DATA[[n]]$ensembl_gene_name) ## Here we make sure that collapsed genename column is not a list (need for writing function)
+# }
+
 
 
 
@@ -415,6 +791,7 @@ TEST_ANNOTATION <- list()
 for (n in WHICH_EXP_TO_ANAL){
   TEST_ANNOTATION[[n]] <- merge(LIST_DATA[[n]], UNIQ_ANNOT_LIST_DATA[[n]], by = "Probe_ID", all.x = T)
 }
+
 
 
 ## Here lets also remove empty lists
@@ -458,6 +835,13 @@ FILT_SHORT_SINGLE_TEST_ANNOTATION <- SHORT_SINGLE_TEST_ANNOTATION %>%
 STDINPUT_FILT_SHORT_SIN_T_ANNO <- FILT_SHORT_SINGLE_TEST_ANNOTATION %>%
   mutate(mean = as.numeric(map(data, function(x) { as.numeric(mean(x[[1]]))} ))) %>% ## This way we give actuall vector to function, not a data table(tibble)
   select("Paper", "GroupID", "ensembl_gene_name", "sum_directionality", "mean") 
+### !!! THE IDEA IS THAT THE "STDINPUT_FILT_SHORT_SIN_T_ANNO" IS THE INPUT FOR ALL FURTHER INQUIRIES !!! ###
+
+# tO raczej nie wyjdzie - nie da siÄ™ wyciÄ…gnÄ…Ä‡ wĹ‚aĹ›ciwej wartoĹ›ci ekspresji z dwĂłch rĂłznych eksperymentĂłw w tym samym paper. MoĹĽe lepiej po prostu dowiedzieÄ‡ siÄ™, ktĂłre geny sÄ… unikatowe dla danego paper i usunÄ…Ä‡ te geny z normalnie uĹĽywanego wczeĹ›niej test annotation pliku. 
+
+###### PAPER-CENTRIC ANALYSIS ###### 
 
 
-
+#################################################
+##### ANNOTATE PROBE_IDs WITH ENSEMBL NAMES #####
+#################################################
