@@ -144,8 +144,7 @@ set_0_hit_annotations_to_na <- function(list_of_dataframes)
 
 
 
-# usedMart <- biomaRt::useMart(biomart = "ENSEMBL_MART_ENSEMBL", dataset = "mmusculus_gene_ensembl")
-# filters <- biomaRt::listFilters(mart = usedMart)
+
 # If we have one, specific identifer, than we want to apply it to all experiments. If we have a list of identifers, than this means that each of these identifier should be applyied to corresponding experiment
 set_identifiers_used_for_annotation_if_not_probeID <- function(str_identifier_type, list_LIST_DATA) 
 {
@@ -507,6 +506,16 @@ annotate_now <- function(list_LIST_DATA_ = LIST_DATA, str_identifier_type_, str_
   DF_FINAL_ANNOT_LIST_DATA <-
     rlist::list.rbind(FINAL_ANNOT_LIST_DATA)
   
+  readr::write_tsv(
+    DF_FINAL_ANNOT_LIST_DATA,
+    paste0(
+      experiment_name_,
+      'raw_annotated_data_from_',
+      identifiers_used_for_annotation[1],
+      '.tsv'
+    )
+  )
+  
   ### !!! ADD A LINE WHERE RAW ANNOTATION DATA ARE PRINTED
   
   # This is the correct way to uniqualize the resulting dataframes
@@ -680,76 +689,165 @@ gather_all_datasets_into_single_df <- function(regex_pattern_to_find_datasets_wi
 
 collapse_annotated_names_for_given_probe <- function(df_annotated, list_LIST_DATA__)
 {
-  temp_list_annotated <-
-    split(x = df_annotated, f = df_annotated$Experiment)
-  
-  temp_bind_list_annotated <-
+  df_annotated <-
     aggregate(external_gene_name ~ Probe_ID,
               data = df_annotated,
               FUN = stringr::str_c)
   
   # This part collapses multiple same values to single value and saves it as temp column
-  temp_bind_list_annotated$temp_gene_name <-
-    as.character(purrr::map(
-      .x = temp_bind_list_annotated$external_gene_name,
-      .f = function(x) {
-        unique(x)
+  df_annotated$temp_gene_name <-
+    as.character(lapply(
+      X = df_annotated$external_gene_name,
+      FUN = function(x) {
+        paste(x, collapse = "; ")
       }
     ))
+
+  df_annotated$external_gene_name <- change_vector_of_mixed_normal_and_c_geneNames_into_unique_geneName(df_annotated$temp_gene_name)
   
-  # Check if the value for given row is proper char, or leftover list ' c("blabla") '
-  was_the_value_uniqued <-
-    stringr::str_detect(string = temp_bind_list_annotated$temp_gene_name, pattern = 'c\\(".*')
-  
-  temp_bind_list_annotated$bullshit_list_derived_strings <-
-    as.character(
-      purrr::map_if(
-        .x = temp_bind_list_annotated$external_gene_name,
-        .p = was_the_value_uniqued,
-        .f = function(.x) {
-          paste(.x, collapse = "; ")
-        },
-        .else = function(.x) {
-          return('')
-        }
-      )
-    )
-  
-  temp_bind_list_annotated$proper_strings <-
-    as.character(
-      purrr::map_if(
-        .x = temp_bind_list_annotated$temp_gene_name,
-        .p = !was_the_value_uniqued,
-        .f = function(.x) {
-          return(.x)
-        },
-        .else = function(.x) {
-          return('')
-        }
-      )
-    )
-  
-  temp_bind_list_annotated$external_gene_name <-
-    paste0(
-      temp_bind_list_annotated$bullshit_list_derived_strings,
-      temp_bind_list_annotated$proper_strings
-    )
-  
-  temp_bind_list_annotated <-
-    dplyr::select(.data = temp_bind_list_annotated, Probe_ID, external_gene_name)
+  df_annotated <-
+    dplyr::select(.data = df_annotated, Probe_ID, external_gene_name)
   
   bind_list_LIST_DATA__ <- rlist::list.rbind(list_LIST_DATA__)
   
-  merged_bind_list_annotated <-
+  merged_df_annotated <-
     merge(x = bind_list_LIST_DATA__,
-          y = temp_bind_list_annotated,
+          y = df_annotated,
           by = 'Probe_ID',
           all.x = T)
   
-  merged_bind_list_annotated <- unique(merged_bind_list_annotated)
+  merged_df_annotated <- unique(merged_df_annotated)
   
-  return(merged_bind_list_annotated)
+  return(merged_df_annotated)
 }
+
+
+# Input: Vector of gene names, needs to be a proper char vector, with gene names separ
+change_vector_of_mixed_normal_and_c_geneNames_into_unique_geneName <- function(char_vec, regex_pattern_to_split_with = '; ')
+{
+  # This part collapses multiple same values to single value and saves it as temp column
+  temp_list <-
+    lapply(
+      X = char_vec,
+      FUN = function(x) {
+        temp <- as.character(stringr::str_split(
+          string = x,
+          pattern = regex_pattern_to_split_with,
+          simplify = T
+        ))
+        
+        temp <- unique(temp)
+        
+        return(temp)
+      }
+    )
+  
+  # Check if the value for given row is proper char, or leftover list ' c("blabla") '
+  was_the_value_uniqued <-
+    as.logical(lapply(
+      X = temp_list,
+      FUN = function(x) {
+        if (length(x) == 1) {
+          return(F)
+        }
+        else{
+          return(T)
+        }
+      }
+    ))
+
+  bullshit_list_derived_strings <-
+    as.character(
+      purrr::map_if(
+        .x = temp_list,
+        .p = was_the_value_uniqued,
+        .f = function(x) {
+          paste(x, collapse = regex_pattern_to_split_with)
+        },
+        .else = function(x) {
+          return('')
+        }
+      )
+    )
+  
+  proper_strings <-
+    as.character(
+      purrr::map_if(
+        .x = temp_list,
+        .p = !was_the_value_uniqued,
+        .f = function(x) {
+          return(x)
+        },
+        .else = function(x) {
+          return('')
+        }
+      )
+    )
+  
+  resulting_char_vector <-
+    paste0(bullshit_list_derived_strings,
+           proper_strings)
+  
+  return(resulting_char_vector)
+}
+
+
+
+# INPUT: single string containing multiple gene names separeted by separator
+select_best_geneName_wrapper_for_single_string <- function(string_to_be_vectorised, separator = '; ')
+{
+  vectorised_string <- as.character(stringr::str_split(
+    string = string_to_be_vectorised,
+    pattern = separator,
+    simplify = T
+  ))
+  
+  the_best_name_ <- select_best_geneName(char_vec = vectorised_string)
+  
+  return(the_best_name_)
+}
+
+
+
+# INPUT: char_vec - includes all gene names returned by ensembl for given gene. Hence, the function should be iterated over list of vectors, each vector/list element for single gene. regex_to_detect_bad_names_with - genes can have 4 numbers: Olr1237 OUTPUT: the_best_name - char_vec of length 1
+select_best_geneName <- function(char_vec, regex_to_detect_bad_names_with = '(\\d{5})|(^Gm\\d)', regex_to_detect_less_bad_names_with = '(Rik)|(LOC)|(Gm)', ignore_case_ = T)
+{
+  log_is_this_name_bad <-
+    stringr::str_detect(string = char_vec, pattern = regex_to_detect_bad_names_with)
+  
+  good_names <- subset(x = char_vec, subset = !log_is_this_name_bad)
+  bad_names <- subset(x = char_vec, subset = log_is_this_name_bad)
+  
+  log_is_this_name_less_bad <-
+    stringr::str_detect(
+      string = bad_names,
+      pattern = stringr::regex(regex_to_detect_less_bad_names_with, ignore_case = ignore_case_)
+    )
+  
+  less_bad_names <- subset(x = bad_names, subset = log_is_this_name_less_bad)
+  
+  if(length(good_names) != 0)
+  {
+    the_best_name <- good_names[[1]]
+  }
+  else if(length(less_bad_names) != 0)
+  {
+    the_best_name <- less_bad_names[[1]]
+  }
+  else if(length(bad_names) != 0)
+  {
+    the_best_name <- bad_names[[1]]
+  }
+  else
+  {
+    the_best_name <- NA
+  }
+  
+  return(the_best_name)
+}
+
+
+
 
 
 
