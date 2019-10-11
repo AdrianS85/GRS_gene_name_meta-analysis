@@ -3,27 +3,35 @@
 
 kill_corrupted_e_notation <- function(df_temp_data_, str_to_substitute_corrupted_data_with)
 {
-  df_temp_data_$corrupted <- stringr::str_detect(string = df_temp_data_$logFC, pattern = 'e')
+  df_temp_data_$corrupted <-
+    stringr::str_detect(string = df_temp_data_$logFC, pattern = 'e')
   
   # Find cells with e-annotation
-  df_temp_data_ <- dplyr::mutate(.data = df_temp_data_, 
-                                 value = dplyr::if_else(condition = corrupted,
-                                                 true = gsub(
-                                                   pattern = '(.*)e\\Q+\\E', 
-                                                   replacement = '',
-                                                   x = logFC), 
-                                                 false = '0', 
-                                                 missing = '0')
+  df_temp_data_ <- dplyr::mutate(
+    .data = df_temp_data_,
+    value = dplyr::if_else(
+      condition = corrupted,
+      true = gsub(
+        pattern = '(.*)e\\Q+\\E',
+        replacement = '',
+        x = logFC
+      ),
+      false = '0',
+      missing = '0'
+    )
   )
   
   df_temp_data_$value <- as.numeric(df_temp_data_$value)
   
   # Set all numbers with e number higher than 2 to constant value
-  df_temp_data_ <- dplyr::mutate(.data = df_temp_data_, 
-                                 logFC = dplyr::if_else(condition = value > 2,
-                                                 true = str_to_substitute_corrupted_data_with, 
-                                                 false = logFC, 
-                                                 missing = logFC)
+  df_temp_data_ <- dplyr::mutate(
+    .data = df_temp_data_,
+    logFC = dplyr::if_else(
+      condition = value > 2,
+      true = str_to_substitute_corrupted_data_with,
+      false = logFC,
+      missing = logFC
+    )
   )
   
   df_temp_data_$corrupted <- NULL
@@ -37,42 +45,45 @@ kill_corrupted_e_notation <- function(df_temp_data_, str_to_substitute_corrupted
 # In col types input floats that can contain either . or , as chars. Later they are converted to numeric based on int_numbers_are_ arguments. Needs at least columns: Paper, Experiment, Probe_Id logFC
 read_preformated_data <- function(str_filename, col_types_ = 'nncccccc', int_numbers_are_from = 6, int_numbers_are_to = 8, str_substitute_inf_with = '15')
 {
-  temp_data <- readr::read_tsv(
-    str_filename, 
-    col_types = col_types_)
+  temp_data <- readr::read_tsv(str_filename,
+                               col_types = col_types_)
   
   # Replace , with . to make number actual R numerics
   temp_data[int_numbers_are_from:int_numbers_are_to] <- lapply(
-    X = temp_data[int_numbers_are_from:int_numbers_are_to], 
-    FUN = function(x) 
-    { stringr::str_replace(
-      string = x, 
-      pattern = ",", 
-      replacement = ".")
-    }) ### COOL CONSTRUCT 
+    X = temp_data[int_numbers_are_from:int_numbers_are_to],
+    FUN = function(x)
+    {
+      stringr::str_replace(string = x,
+                           pattern = ",",
+                           replacement = ".")
+    }
+  ) ### COOL CONSTRUCT
   
   # Replace inf values with constant number
   temp_data[int_numbers_are_from:int_numbers_are_to] <- lapply(
     X = temp_data[int_numbers_are_from:int_numbers_are_to],
-    FUN = function(x) { gsub(
-      pattern = "^[I|i]nf(.*)", 
-      replacement = str_substitute_inf_with,
-      x = x)})
+    FUN = function(x) {
+      gsub(pattern = "^[I|i]nf(.*)",
+           replacement = str_substitute_inf_with,
+           x = x)
+    }
+  )
   
   # Replace too large e numbers with constant number
-  temp_data <- kill_corrupted_e_notation(df_temp_data_ = temp_data, str_to_substitute_corrupted_data_with = str_substitute_inf_with)
+  temp_data <-
+    kill_corrupted_e_notation(df_temp_data_ = temp_data,
+                              str_to_substitute_corrupted_data_with = str_substitute_inf_with)
   
   # Change number columns to numeric type
-  temp_data[int_numbers_are_from:int_numbers_are_to] <- lapply(
-    temp_data[int_numbers_are_from:int_numbers_are_to], 
-    as.numeric)
+  temp_data[int_numbers_are_from:int_numbers_are_to] <- lapply(temp_data[int_numbers_are_from:int_numbers_are_to],
+                                                               as.numeric)
   
   return(temp_data)
 }
 
 
 
-# Class of input is a list. Defaults to writing lenghts of object on first level of depth of the list
+# INPUT: list. Defaults to writing lenghts of object on first level of depth of the list
 write_lenghts_of_list_objects <- function(list_, string_name_of_the_file, int_length_at_this_depth = 1)
 {
   temp <- lapply(
@@ -144,8 +155,7 @@ set_0_hit_annotations_to_na <- function(list_of_dataframes)
 
 
 
-# usedMart <- biomaRt::useMart(biomart = "ENSEMBL_MART_ENSEMBL", dataset = "mmusculus_gene_ensembl")
-# filters <- biomaRt::listFilters(mart = usedMart)
+
 # If we have one, specific identifer, than we want to apply it to all experiments. If we have a list of identifers, than this means that each of these identifier should be applyied to corresponding experiment
 set_identifiers_used_for_annotation_if_not_probeID <- function(str_identifier_type, list_LIST_DATA) 
 {
@@ -161,36 +171,6 @@ set_identifiers_used_for_annotation_if_not_probeID <- function(str_identifier_ty
 
 
 
-change_name_to_proper_format_given_the_species <- function(df_name, str_species)
-{
-  df_name$Old_Probe_ID <- df_name$Probe_ID
-  
-  if(str_species %in% c('mice', 'rats'))
-  {
-    temp1 <- subset(x = df_name, str_detect(string = df_name$Probe_ID, pattern = '(?i)(loc)|(rgd)')) #case insensitive
-    temp2 <- subset(x = df_name, str_detect(string = df_name$Probe_ID, pattern = '(?i)(rik)'))
-    temp3 <- subset(x = df_name, !str_detect(string = df_name$Probe_ID, pattern = '(?i)(rik)|(loc)|(rgd)')) 
-    
-    temp1$Probe_ID <- toupper(temp1$Probe_ID)
-    
-    temp2$Probe_ID <- toupper(temp2$Probe_ID)
-    temp2$Probe_ID <- str_replace(string = temp2$Probe_ID, pattern = '(?i)(rik)', replacement = 'Rik')
-    
-    temp3$Probe_ID <- tolower(temp3$Probe_ID)
-    substr(temp3$Probe_ID, start = 1, stop = 1) <- toupper(substr(temp3$Probe_ID, 1, 1))
-    
-    
-    temp4 <- rbind(temp1, temp2, temp3)
-    
-    return(temp4)
-  }
-  else if(str_species %in% c('humans', 'squirrelmonkeys'))
-  {
-    temp <- df_name
-    temp$Probe_ID <- toupper(temp$Probe_ID)
-    return(temp)
-  }
-}
 
 
 
@@ -345,7 +325,7 @@ search_for_ids_in_ncbi <- function(str_vector_of_ids)
 
 
 #This function should except output of search_for_ids function. BEWARE - this only returns first geneID found
-make_and_write_table_with_original_and_ncbi_ids <- function(df_returned_by_entrez_gene_search, df_original_data, str_name_of_the_file = 'generic.tsv', experiment_directory_name = '.')
+make_and_write_table_with_original_and_ncbi_ids <- function(df_returned_by_entrez_gene_search, df_original_data, str_name_of_the_file = 'generic.tsv', experiment_directory_name = '.', str_to_cut_from_ncbi_response_to_form_back_Probe_ID)
 {
   temp_list <- list()
   for (n in seq(length(df_returned_by_entrez_gene_search)))
@@ -354,29 +334,45 @@ make_and_write_table_with_original_and_ncbi_ids <- function(df_returned_by_entre
     
     if (length(df_returned_by_entrez_gene_search[[n]]$ids) != 0)
     {
-      temp_list[[n]][[1]] <- df_returned_by_entrez_gene_search[[n]]$ids[[1]]
-    } 
+      temp_list[[n]][[1]] <-
+        df_returned_by_entrez_gene_search[[n]]$ids[[1]]
+    }
     else
     {
       temp_list[[n]][[1]] <- 'none'
     }
-    temp_name <- df_returned_by_entrez_gene_search[[n]]$QueryTranslation
+    temp_name <-
+      df_returned_by_entrez_gene_search[[n]]$QueryTranslation
     
     
     temp_list[[n]][[2]] <- gsub(
-      pattern = "(\\[All Fields\\])|\\)|\\(", 
-      replacement = '', 
-      x = df_returned_by_entrez_gene_search[[n]]$QueryTranslation)
+      pattern = "(\\[All Fields\\])|\\)|\\(",
+      replacement = '',
+      x = df_returned_by_entrez_gene_search[[n]]$QueryTranslation
+    )
   }
   
   
   temp_df <- as.data.frame(rlist::list.rbind(temp_list))
   colnames(temp_df) <- c('ncbi_response', 'Probe_ID')
   
-  temp_df <- merge(x = df_original_data, y = temp_df, by = 'Probe_ID', all.x = T)
+  regex_str_to_cut_from_ncbi_response_to_form_back_Probe_ID <-
+    paste0('(',
+           Hmisc::escapeRegex(string = str_to_cut_from_ncbi_response_to_form_back_Probe_ID),
+           ')(.*)')
+
+  temp_df$Probe_ID <-
+    stringr::str_remove(string = temp_df$Probe_ID, pattern = regex_str_to_cut_from_ncbi_response_to_form_back_Probe_ID) ### !!! This regex string is not working
+  
+  temp_df <-
+    merge(x = df_original_data,
+          y = temp_df,
+          by = 'Probe_ID',
+          all.x = T)
   temp_df <- unique(temp_df)
   
-  readr::write_tsv(temp_df, paste0(experiment_directory_name, '/', str_name_of_the_file))
+  readr::write_tsv(temp_df,
+                   paste0(experiment_directory_name, '/', str_name_of_the_file))
   
   return(temp_df)
 }
@@ -407,12 +403,15 @@ download_platforms_from_gemma <- function(str_platforms_ids_to_download)
 
 
 # list_gemma_platforms is list of annotations for platforms in list_LIST_DATA downloaded from gemma: a result from download_platforms_from_gemma function
-get_gemma_annotations_for_data <- function(list_LIST_DATA, list_gemma_platforms)
+get_gemma_annotations_for_data <- function(str_data_file_name, list_gemma_platforms)
 {
-  library(dplyr)
+  df_data <- read_preformated_data(str_filename = str_data_file_name)
+
+  list_data <- split(x = df_data, f = df_data$Paper)
+  
   temp_list <-
     purrr::map2(
-      .x = list_LIST_DATA,
+      .x = list_data,
       .y = list_gemma_platforms,
       .f = function(.x, .y)
       {
@@ -427,7 +426,11 @@ get_gemma_annotations_for_data <- function(list_LIST_DATA, list_gemma_platforms)
       }
     )
   
-  return(temp_list)
+  df_return <- rlist::list.rbind(temp_list)
+  df_return <- df_return %>%
+    dplyr::rename(external_gene_name = GeneSymbols)
+  
+  return(df_return)
 }
 
 
@@ -440,12 +443,7 @@ write_lists <- function(list_LIST_DATA, str_experiment_name, str_description)
 
 
 
-merge_and_remove_nas_from_list_post_annotation <- function(list_annotated_LIST_DATA, str_name_of_column_containing_annotated_gene_symbols)
-{
-  temp_df <- rlist::list.rbind(list_annotated_LIST_DATA)
-  temp_df <- subset(x = temp_df, subset = !is.na(temp_df[[str_name_of_column_containing_annotated_gene_symbols]]))
-  return(temp_df)
-}
+
 
 
 
@@ -507,6 +505,16 @@ annotate_now <- function(list_LIST_DATA_ = LIST_DATA, str_identifier_type_, str_
   DF_FINAL_ANNOT_LIST_DATA <-
     rlist::list.rbind(FINAL_ANNOT_LIST_DATA)
   
+  readr::write_tsv(
+    DF_FINAL_ANNOT_LIST_DATA,
+    paste0(
+      experiment_name_,
+      'raw_annotated_data_from_',
+      identifiers_used_for_annotation[1],
+      '.tsv'
+    )
+  )
+  
   ### !!! ADD A LINE WHERE RAW ANNOTATION DATA ARE PRINTED
   
   # This is the correct way to uniqualize the resulting dataframes
@@ -532,12 +540,12 @@ annotate_now <- function(list_LIST_DATA_ = LIST_DATA, str_identifier_type_, str_
 
 
 
-set_experiment_name_and_create_directory_for_output <- function(str_identifier_type___, backup_experiment_name_)
+set_experiment_name_and_create_directory_for_output <- function(str_identifier_type___, str_experiment_name_)
 {
-  if (length(str_identifier_type___) != 1)
+  if (str_experiment_name_ != '')
   {
-    temp_experiment_directory_name = paste0(backup_experiment_name_, '/')
-    temp_str_identifier_name <- backup_experiment_name_
+    temp_experiment_directory_name = paste0(str_experiment_name_, '/')
+    temp_str_identifier_name <- str_experiment_name_
   }
   else
   {
@@ -563,14 +571,45 @@ set_experiment_name_and_create_directory_for_output <- function(str_identifier_t
 
 
 
+# set_experiment_name_and_create_directory_for_output <- function(str_identifier_type___, backup_experiment_name_)
+# {
+#   if (length(str_identifier_type___) != 1)
+#   {
+#     temp_experiment_directory_name = paste0(backup_experiment_name_, '/')
+#     temp_str_identifier_name <- backup_experiment_name_
+#   }
+#   else
+#   {
+#     temp_experiment_directory_name <-
+#       paste0(str_identifier_type___, '/')
+#     temp_str_identifier_name <- str_identifier_type___
+#   }
+#   
+#   print(
+#     paste0(
+#       'Trying to create directory "',
+#       temp_experiment_directory_name,
+#       '". Ignore warning that the directory exists. It does not interfere with its creation. No need for if statements here.'
+#     )
+#   )
+#   dir.create(temp_experiment_directory_name, temp_str_identifier_name)
+#   
+#   temp_both_names <-
+#     list(temp_experiment_directory_name, temp_str_identifier_name)
+#   
+#   return(temp_both_names)
+# }
+
+
+
 # We can pass two types of data into str_identifier_name: 1) one-element string vector, which is the same name as filter name in biomartr-ensembl database. 2) vector of strings with filter name for each experiment dataset in the list of experiments
-master_annotator_for_known_identfiers <- function(descriptions_, str_filename_, str_identifier_type__, backup_experiment_name)
+master_annotator_for_known_identfiers <- function(descriptions_, str_filename_, str_identifier_type__, str_experiment_name = '')
 {
   # We use %>% operator somewhere in this, or downstream function - I think we do not need this, as we defined `%>%` <- dplyr::`%>%` before
   # library(dplyr)
   
   list_experiment_directory_name_and_identifier_type <-
-    set_experiment_name_and_create_directory_for_output(str_identifier_type__, backup_experiment_name)
+    set_experiment_name_and_create_directory_for_output(str_identifier_type__, str_experiment_name)
   
   
   PRE_DATA__ <-
@@ -625,9 +664,53 @@ master_annotator_for_known_identfiers <- function(descriptions_, str_filename_, 
   return(annotation)
 }
 
+# INPUT: two corresponding char vectors, char_vec_gene_id_to_query_with - gene names to query ncbi with, char_vec_organism - species name for every gene name. OUTPUT: List. [[1]] - actual queries to be sent to ncbi; [[2]] - vector added to Probe_ID (gene name). Without it, it is difficult for next function to return probeid/genename to its original form, which is neccesary for merging queries with original dataframe
+get_query_for_ncbi_geneID_annotation <- function(char_vec_gene_id_to_query_with, char_vec_organism, chr_gene_identifier)
+{
+  
+  mouse_names <- c('mus', 'mouse', 'mice')
+  rat_names <- c('rattus', 'rat', 'rats')
+  human_names <- c('homo', 'human', 'humans')
+  saimiri_names <- c('saimiri', 'squirrel monkey', 'squirrel monkeys', 'squirrelmonkeys')
+  
+  species_vector <-
+    as.character(lapply(
+      X = tolower(char_vec_organism),
+      FUN = function(x) {
+        if (x %in% mouse_names) {
+          return('"Mus musculus"')
+        }
+        else if (x %in% rat_names) {
+          return('"rattus norvegicus"')
+        }
+        else if (x %in% human_names) {
+          return('"homo sapiens"')
+        }
+        else if (x %in% saimiri_names) {
+          return('saimiri')
+        }
+        else{
+          stop('I did not recognize species name. You probably have to ret into this function and add Your species names manually')
+        }
+      }
+    ))
+  
+  ################### WORKING ####################
+  linker_string_crucial_for_returning_ProbeID_to_proper_form <- paste0('[', chr_gene_identifier, '] AND ')
+  
+  # linker_string_crucial_for_returning_ProbeID_to_proper_form <- '[Gene Name] AND '
+  ################### WORKING ####################
+  
+  query_vector <- paste0(char_vec_gene_id_to_query_with, linker_string_crucial_for_returning_ProbeID_to_proper_form, species_vector, '[Organism]')
+
+  return_ <- list(query_vector, linker_string_crucial_for_returning_ProbeID_to_proper_form)
+  
+  return(return_)
+}
 
 
-annotate_identifiers_to_geneID <- function(str_filename_, str_experiment_name, descriptions_, bool_reformat_names = F)
+# INPUT: chr_gene_identifier_ - this needs to be proper ncbi search class, as can be found using advanced search in ncbi. There should be no need for it to be any different that 'Gene name'
+annotate_identifiers_to_geneID <- function(str_filename_, str_experiment_name, descriptions_, bool_reformat_names = F, chr_gene_identifier_ = 'Gene name')
 {
   data <- read_preformated_data(str_filename = str_filename_, int_numbers_are_from = 6, int_numbers_are_to = 8, col_types_ = 'nncccccc')
   
@@ -635,7 +718,23 @@ annotate_identifiers_to_geneID <- function(str_filename_, str_experiment_name, d
   
   dir.create(directory_name)
   
-  strvec_ncbi_query_for_identifers <- search_for_ids_in_ncbi(as.vector(data$Probe_ID))
+  descriptions_ = descriptions
+  # Number of entires for [Organism] name: 102702 rattus, rat, rats // 273852 mouse, mus, mice // 224903 homo, humans // 224866 human // 30931 squirrel monkeys, Saimiri // 30905 saimiri boliviensis
+  # List of species names based on data in description files. This is a file we will be working on. Species is in format: small letters, english plural of species
+  exp_species__ <- descriptions_ %>%
+    dplyr::select("Paper_ID", "Species") %>%
+    unique() %>%
+    dplyr::filter(Paper_ID %in% unique(data$Paper))
+  
+  temp_data <- merge(x = data, y = exp_species__, by.x = 'Paper', by.y = 'Paper_ID')
+
+  list_query_for_ncbi <- get_query_for_ncbi_geneID_annotation(char_vec_gene_id_to_query_with = temp_data$Probe_ID, char_vec_organism = temp_data$Species, chr_gene_identifier = chr_gene_identifier_)
+  
+  query_for_ncbi <- list_query_for_ncbi[[1]]
+  
+  linker_string_crucial_for_returning_ProbeID_to_proper_form_ <- list_query_for_ncbi[[2]]
+
+  strvec_ncbi_query_for_identifers <- search_for_ids_in_ncbi(query_for_ncbi)
   
   if(bool_reformat_names == T)
   {
@@ -655,10 +754,47 @@ annotate_identifiers_to_geneID <- function(str_filename_, str_experiment_name, d
   }
   
   ### Annotate unidentified, !!!but unique!!! gene identifiers to gene-id using ncbi gene database  
-  annotated_data <- make_and_write_table_with_original_and_ncbi_ids(df_returned_by_entrez_gene_search = strvec_ncbi_query_for_identifers, df_original_data = data, str_name_of_the_file = paste0(str_experiment_name, '.tsv'), experiment_directory_name = directory_name)
+  annotated_data <- make_and_write_table_with_original_and_ncbi_ids(df_returned_by_entrez_gene_search = strvec_ncbi_query_for_identifers, df_original_data = data, str_name_of_the_file = paste0(str_experiment_name, '.tsv'), experiment_directory_name = directory_name, str_to_cut_from_ncbi_response_to_form_back_Probe_ID = linker_string_crucial_for_returning_ProbeID_to_proper_form_)
   
   return(annotated_data)
 }
+
+
+
+# annotate_identifiers_to_geneID <- function(str_filename_, str_experiment_name, descriptions_, bool_reformat_names = F)
+# {
+#   data <- read_preformated_data(str_filename = str_filename_, int_numbers_are_from = 6, int_numbers_are_to = 8, col_types_ = 'nncccccc')
+#   
+#   directory_name <- paste0(str_experiment_name, '/')
+#   
+#   dir.create(directory_name)
+#   
+#   ####
+#   
+#   strvec_ncbi_query_for_identifers <- search_for_ids_in_ncbi(as.vector(data$Probe_ID))
+#   
+#   if(bool_reformat_names == T)
+#   {
+#     print( paste0('Do not use this option. In its current implementation it does the opposite of helping. Moreover, the data I have is proper and does not need reformating') )
+#     # exp_species <- descriptions_ %>%
+#     #   select("Paper_ID", "Species") %>%
+#     #   unique() %>%
+#     #   filter(Paper_ID %in% unique(data$Paper))
+#     # 
+#     # readr::write_tsv(x = exp_species, path = paste0(directory_name, str_experiment_name, '_species_used_for_analysis.tsv'))
+#     # 
+#     # list_data <- purrr::map2(.x = split(data, f = data$Paper), .y = exp_species$Species, .f = ~ change_name_to_proper_format_given_the_species(.x, .y))
+#     # 
+#     # data <- rlist::list.rbind(list_data)
+#     # 
+#     # rm(list_data)
+#   }
+#   
+#   ### Annotate unidentified, !!!but unique!!! gene identifiers to gene-id using ncbi gene database  
+#   annotated_data <- make_and_write_table_with_original_and_ncbi_ids(df_returned_by_entrez_gene_search = strvec_ncbi_query_for_identifers, df_original_data = data, str_name_of_the_file = paste0(str_experiment_name, '.tsv'), experiment_directory_name = directory_name)
+#   
+#   return(annotated_data)
+# }
 
 
 
@@ -680,144 +816,313 @@ gather_all_datasets_into_single_df <- function(regex_pattern_to_find_datasets_wi
 
 collapse_annotated_names_for_given_probe <- function(df_annotated, list_LIST_DATA__)
 {
-  temp_list_annotated <-
-    split(x = df_annotated, f = df_annotated$Experiment)
-  
-  temp_bind_list_annotated <-
+  df_annotated <-
     aggregate(external_gene_name ~ Probe_ID,
               data = df_annotated,
               FUN = stringr::str_c)
   
   # This part collapses multiple same values to single value and saves it as temp column
-  temp_bind_list_annotated$temp_gene_name <-
-    as.character(purrr::map(
-      .x = temp_bind_list_annotated$external_gene_name,
-      .f = function(x) {
-        unique(x)
+  df_annotated$temp_gene_name <-
+    as.character(lapply(
+      X = df_annotated$external_gene_name,
+      FUN = function(x) {
+        paste(x, collapse = "; ")
       }
     ))
+
+  df_annotated$external_gene_name <- change_vector_of_mixed_normal_and_c_geneNames_into_unique_geneName(df_annotated$temp_gene_name)
   
-  # Check if the value for given row is proper char, or leftover list ' c("blabla") '
-  was_the_value_uniqued <-
-    stringr::str_detect(string = temp_bind_list_annotated$temp_gene_name, pattern = 'c\\(".*')
-  
-  temp_bind_list_annotated$bullshit_list_derived_strings <-
-    as.character(
-      purrr::map_if(
-        .x = temp_bind_list_annotated$external_gene_name,
-        .p = was_the_value_uniqued,
-        .f = function(.x) {
-          paste(.x, collapse = "; ")
-        },
-        .else = function(.x) {
-          return('')
-        }
-      )
-    )
-  
-  temp_bind_list_annotated$proper_strings <-
-    as.character(
-      purrr::map_if(
-        .x = temp_bind_list_annotated$temp_gene_name,
-        .p = !was_the_value_uniqued,
-        .f = function(.x) {
-          return(.x)
-        },
-        .else = function(.x) {
-          return('')
-        }
-      )
-    )
-  
-  temp_bind_list_annotated$external_gene_name <-
-    paste0(
-      temp_bind_list_annotated$bullshit_list_derived_strings,
-      temp_bind_list_annotated$proper_strings
-    )
-  
-  temp_bind_list_annotated <-
-    dplyr::select(.data = temp_bind_list_annotated, Probe_ID, external_gene_name)
+  df_annotated <-
+    dplyr::select(.data = df_annotated, Probe_ID, external_gene_name)
   
   bind_list_LIST_DATA__ <- rlist::list.rbind(list_LIST_DATA__)
   
-  merged_bind_list_annotated <-
+  merged_df_annotated <-
     merge(x = bind_list_LIST_DATA__,
-          y = temp_bind_list_annotated,
+          y = df_annotated,
           by = 'Probe_ID',
           all.x = T)
   
-  merged_bind_list_annotated <- unique(merged_bind_list_annotated)
+  merged_df_annotated <- unique(merged_df_annotated)
   
-  return(merged_bind_list_annotated)
+  return(merged_df_annotated)
 }
 
 
-
-do_directions_for_multiple_gene_instances_within_experiment_match_old <- function(df_merged_dataset_)
+# Input: Vector of gene names, needs to be a proper char vector, with gene names separ
+change_vector_of_mixed_normal_and_c_geneNames_into_unique_geneName <- function(char_vec, regex_pattern_to_split_with = '; ')
 {
-  ### This will be our input data for further analysis. It contains only significant columns of "Paper", "GroupID", "ensembl_gene_name", "logFC":
-  SHORT_SINGLE_TEST_ANNOTATION <- df_merged_dataset_ %>%
-    dplyr::select("Paper", "Experiment", "external_gene_name", "logFC") %>%
-    dplyr::group_nest(Paper, Experiment, external_gene_name)
-  
-  # I dont know why purrr::map didnt work for this. Either way, we just lapply this. Here we write UP or DOWN for every logFC for given genename in given experiment (not paper)
-  SHORT_SINGLE_TEST_ANNOTATION$directionality <-
+  # This part collapses multiple same values to single value and saves it as temp column
+  temp_list <-
     lapply(
-      X = SHORT_SINGLE_TEST_ANNOTATION$data,
+      X = char_vec,
       FUN = function(x) {
-        dplyr::mutate(x, Symbol_direction = ifelse(logFC > 0, "UP", "DOWN"))
+        temp <- as.character(stringr::str_split(
+          string = x,
+          pattern = regex_pattern_to_split_with,
+          simplify = T
+        ))
+        
+        temp <- unique(temp)
+        
+        return(temp)
       }
     )
   
-  # Here we count how many UPs and DOWNs are in every given genename in given experiment (not paper)
-  SHORT_SINGLE_TEST_ANNOTATION$directionality <-
-    lapply(
-      X = SHORT_SINGLE_TEST_ANNOTATION$directionality,
-      FUN = function (x) {
-        table(dplyr::select(x, "Symbol_direction"))
-      }
-    )
-  
-  # Here we establish actual status of gene in given experiment
-  SHORT_SINGLE_TEST_ANNOTATION$sum_directionality <-
-    as.character(lapply(
-      X = SHORT_SINGLE_TEST_ANNOTATION$directionality,
+  # Check if the value for given row is proper char, or leftover list ' c("blabla") '
+  was_the_value_uniqued <-
+    as.logical(lapply(
+      X = temp_list,
       FUN = function(x) {
-        if (length(x) == 1 && grepl(pattern = "UP", names(x))) {
-          "UP"
+        if (length(x) == 1) {
+          return(F)
         }
-        else if (length(x) == 1 &&
-                 grepl(pattern = "DOWN", names(x))) {
-          "DOWN"
-        }
-        else if (length(x) == 2 &&
-                 grepl(pattern = "DOWN", names(x)) &&
-                 grepl(pattern = "DOWN", names(x))) {
-          "MIXED"
-        }
-        else {
-          "ERROR"
+        else{
+          return(T)
         }
       }
     ))
-  SHORT_SINGLE_TEST_ANNOTATION$directionality <- NULL
+
+  bullshit_list_derived_strings <-
+    as.character(
+      purrr::map_if(
+        .x = temp_list,
+        .p = was_the_value_uniqued,
+        .f = function(x) {
+          paste(x, collapse = regex_pattern_to_split_with)
+        },
+        .else = function(x) {
+          return('')
+        }
+      )
+    )
   
+  proper_strings <-
+    as.character(
+      purrr::map_if(
+        .x = temp_list,
+        .p = !was_the_value_uniqued,
+        .f = function(x) {
+          return(x)
+        },
+        .else = function(x) {
+          return('')
+        }
+      )
+    )
   
-  UNNEST_SHORT_SINGLE_TEST_ANNOTATION <-
-    SHORT_SINGLE_TEST_ANNOTATION %>%
-    tidyr::unnest()
+  resulting_char_vector <-
+    paste0(bullshit_list_derived_strings,
+           proper_strings)
   
-  return(UNNEST_SHORT_SINGLE_TEST_ANNOTATION)
-  
-  # # Here we remove MIXED expression and multiple genenames
-  # FILT_SHORT_SINGLE_TEST_ANNOTATION <- SHORT_SINGLE_TEST_ANNOTATION %>%
-  #   #filter(!grepl(pattern = "(.*);(.*)", SHORT_SINGLE_TEST_ANNOTATION$ensembl_gene_name)) %>%
-  #   dplyr::filter(!sum_directionality == "MIXED") %>%
-  #   dplyr::filter(!sum_directionality == "ERROR") %>%
-  #   dplyr::filter(!is.na(ensembl_gene_name))
-  # 
-  # # Here we add mean to each !!! Perhaps this should be final input, because it has: 1) removed genes giving UP+DOWN in the same experiment, 2) removed NAs
-  # STDINPUT_FILT_SHORT_SIN_T_ANNO <- FILT_SHORT_SINGLE_TEST_ANNOTATION %>%
-  #   mutate(mean = as.numeric(map(data, function(x) { as.numeric(mean(x[[1]]))} ))) %>% ## This way we give actuall vector to function, not a data table(tibble)
-  #   select("Paper", "GroupID", "ensembl_gene_name", "sum_directionality", "mean") 
+  return(resulting_char_vector)
 }
+
+
+
+# INPUT: single string containing multiple gene names separeted by separator
+select_best_geneName_wrapper_for_single_string <- function(string_to_be_vectorised, separator = '; ')
+{
+  vectorised_string <- as.character(stringr::str_split(
+    string = string_to_be_vectorised,
+    pattern = separator,
+    simplify = T
+  ))
+  
+  the_best_name_ <- select_best_geneName(char_vec = vectorised_string)
+  
+  return(the_best_name_)
+}
+
+
+
+# INPUT: char_vec - includes all gene names returned by ensembl for given gene. Hence, the function should be iterated over list of vectors, each vector/list element for single gene. regex_to_detect_bad_names_with - genes can have 4 numbers: Olr1237 OUTPUT: the_best_name - char_vec of length 1
+select_best_geneName <- function(char_vec, regex_to_detect_bad_names_with = '(\\d{5})|(^Gm\\d)', regex_to_detect_less_bad_names_with = '(Rik)|(LOC)|(Gm)', ignore_case_ = T)
+{
+  log_is_this_name_bad <-
+    stringr::str_detect(string = char_vec, pattern = regex_to_detect_bad_names_with)
+  
+  good_names <- subset(x = char_vec, subset = !log_is_this_name_bad)
+  bad_names <- subset(x = char_vec, subset = log_is_this_name_bad)
+  
+  log_is_this_name_less_bad <-
+    stringr::str_detect(
+      string = bad_names,
+      pattern = stringr::regex(regex_to_detect_less_bad_names_with, ignore_case = ignore_case_)
+    )
+  
+  less_bad_names <- subset(x = bad_names, subset = log_is_this_name_less_bad)
+  
+  if(length(good_names) != 0)
+  {
+    the_best_name <- good_names[[1]]
+  }
+  else if(length(less_bad_names) != 0)
+  {
+    the_best_name <- less_bad_names[[1]]
+  }
+  else if(length(bad_names) != 0)
+  {
+    the_best_name <- bad_names[[1]]
+  }
+  else
+  {
+    the_best_name <- NA
+  }
+  
+  return(the_best_name)
+}
+
+
+
+
+master_annotator_for_known_identfiers_wrapper_for_using_dfs_as_input <- function(descriptions__ = descriptions, df_to_annotate, str_identifier_type___, str_experiment_name__ = '')
+{
+  temp_file <- tempfile()
+  
+  readr::write_tsv(x = df_to_annotate, path = temp_file)
+  
+  annotations_ <-
+    master_annotator_for_known_identfiers(
+      descriptions_ = descriptions__,
+      str_filename_ = temp_file,
+      str_identifier_type__ = str_identifier_type___,
+      str_experiment_name = str_experiment_name__
+    )
+  
+  if (file.exists(temp_file))
+  {
+    file.remove(temp_file)
+  }
+  
+  return(annotations_)
+}
+
+
+# Compares lenght of original df to child dfs, that were split from original df by filtering. INPUT: str_what_was_splited - name for a file in which the result will be written to. OUTPUT: bool_ - This is true when lendght of og_df == summed lenghts of child dfs, written file
+check_was_the_spliting_of_df_by_filtering_ok <- function(str_what_was_splited = '', df_original, list_df_splited)
+{
+  lenght_of_original_df <- length(df_original[[1]])
+  lenght_of_child_df <- sum( as.integer(lapply(X = list_df_splited, FUN = function(x) { length(x[[1]]) } )) )
+
+  was_spliting_good <- lenght_of_original_df == lenght_of_child_df
+
+  df_to_write_was_spliting_good <- as.data.frame(was_spliting_good)
+  colnames(df_to_write_was_spliting_good) <- str_what_was_splited
+
+  readr::write_tsv(x = df_to_write_was_spliting_good, path = paste0(str_what_was_splited, '_', quote(df_original), '.txt'))
+
+  return(was_spliting_good)
+}
+# 
+# do_directions_for_multiple_gene_instances_within_experiment_match_old <- function(df_merged_dataset_)
+# {
+#   ### This will be our input data for further analysis. It contains only significant columns of "Paper", "GroupID", "ensembl_gene_name", "logFC":
+#   SHORT_SINGLE_TEST_ANNOTATION <- df_merged_dataset_ %>%
+#     dplyr::select("Paper", "Experiment", "external_gene_name", "logFC") %>%
+#     dplyr::group_nest(Paper, Experiment, external_gene_name)
+#   
+#   # I dont know why purrr::map didnt work for this. Either way, we just lapply this. Here we write UP or DOWN for every logFC for given genename in given experiment (not paper)
+#   SHORT_SINGLE_TEST_ANNOTATION$directionality <-
+#     lapply(
+#       X = SHORT_SINGLE_TEST_ANNOTATION$data,
+#       FUN = function(x) {
+#         dplyr::mutate(x, Symbol_direction = ifelse(logFC > 0, "UP", "DOWN"))
+#       }
+#     )
+#   
+#   # Here we count how many UPs and DOWNs are in every given genename in given experiment (not paper)
+#   SHORT_SINGLE_TEST_ANNOTATION$directionality <-
+#     lapply(
+#       X = SHORT_SINGLE_TEST_ANNOTATION$directionality,
+#       FUN = function (x) {
+#         table(dplyr::select(x, "Symbol_direction"))
+#       }
+#     )
+#   
+#   # Here we establish actual status of gene in given experiment
+#   SHORT_SINGLE_TEST_ANNOTATION$sum_directionality <-
+#     as.character(lapply(
+#       X = SHORT_SINGLE_TEST_ANNOTATION$directionality,
+#       FUN = function(x) {
+#         if (length(x) == 1 && grepl(pattern = "UP", names(x))) {
+#           "UP"
+#         }
+#         else if (length(x) == 1 &&
+#                  grepl(pattern = "DOWN", names(x))) {
+#           "DOWN"
+#         }
+#         else if (length(x) == 2 &&
+#                  grepl(pattern = "DOWN", names(x)) &&
+#                  grepl(pattern = "DOWN", names(x))) {
+#           "MIXED"
+#         }
+#         else {
+#           "ERROR"
+#         }
+#       }
+#     ))
+#   SHORT_SINGLE_TEST_ANNOTATION$directionality <- NULL
+#   
+#   
+#   UNNEST_SHORT_SINGLE_TEST_ANNOTATION <-
+#     SHORT_SINGLE_TEST_ANNOTATION %>%
+#     tidyr::unnest()
+#   
+#   return(UNNEST_SHORT_SINGLE_TEST_ANNOTATION)
+#   
+#   # # Here we remove MIXED expression and multiple genenames
+#   # FILT_SHORT_SINGLE_TEST_ANNOTATION <- SHORT_SINGLE_TEST_ANNOTATION %>%
+#   #   #filter(!grepl(pattern = "(.*);(.*)", SHORT_SINGLE_TEST_ANNOTATION$ensembl_gene_name)) %>%
+#   #   dplyr::filter(!sum_directionality == "MIXED") %>%
+#   #   dplyr::filter(!sum_directionality == "ERROR") %>%
+#   #   dplyr::filter(!is.na(ensembl_gene_name))
+#   # 
+#   # # Here we add mean to each !!! Perhaps this should be final input, because it has: 1) removed genes giving UP+DOWN in the same experiment, 2) removed NAs
+#   # STDINPUT_FILT_SHORT_SIN_T_ANNO <- FILT_SHORT_SINGLE_TEST_ANNOTATION %>%
+#   #   mutate(mean = as.numeric(map(data, function(x) { as.numeric(mean(x[[1]]))} ))) %>% ## This way we give actuall vector to function, not a data table(tibble)
+#   #   select("Paper", "GroupID", "ensembl_gene_name", "sum_directionality", "mean") 
+# }
+
+
+
+# # This function is not to be used, as it is not working as expected
+# change_name_to_proper_format_given_the_species <- function(df_name, str_species)
+# {
+#   df_name$Old_Probe_ID <- df_name$Probe_ID
+#   
+#   if(str_species %in% c('mice', 'rats'))
+#   {
+#     temp1 <- subset(x = df_name, str_detect(string = df_name$Probe_ID, pattern = '(?i)(loc)|(rgd)')) #case insensitive
+#     temp2 <- subset(x = df_name, str_detect(string = df_name$Probe_ID, pattern = '(?i)(rik)'))
+#     temp3 <- subset(x = df_name, !str_detect(string = df_name$Probe_ID, pattern = '(?i)(rik)|(loc)|(rgd)')) 
+#     
+#     temp1$Probe_ID <- toupper(temp1$Probe_ID)
+#     
+#     temp2$Probe_ID <- toupper(temp2$Probe_ID)
+#     temp2$Probe_ID <- str_replace(string = temp2$Probe_ID, pattern = '(?i)(rik)', replacement = 'Rik')
+#     
+#     temp3$Probe_ID <- tolower(temp3$Probe_ID)
+#     substr(temp3$Probe_ID, start = 1, stop = 1) <- toupper(substr(temp3$Probe_ID, 1, 1))
+#     
+#     
+#     temp4 <- rbind(temp1, temp2, temp3)
+#     
+#     return(temp4)
+#   }
+#   else if(str_species %in% c('humans', 'squirrelmonkeys'))
+#   {
+#     temp <- df_name
+#     temp$Probe_ID <- toupper(temp$Probe_ID)
+#     return(temp)
+#   }
+# }
+
+
+
+# merge_and_remove_nas_from_list_post_annotation <- function(list_annotated_LIST_DATA, str_name_of_column_containing_annotated_gene_symbols)
+# {
+#   temp_df <- rlist::list.rbind(list_annotated_LIST_DATA)
+#   temp_df <- subset(x = temp_df, subset = !is.na(temp_df[[str_name_of_column_containing_annotated_gene_symbols]]))
+#   return(temp_df)
+# }
