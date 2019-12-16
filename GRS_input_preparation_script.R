@@ -1,88 +1,152 @@
-setwd('/media/adrians/USB DISK1/Projekty/GRS - GJt Review Stress/FULL_DATASET')
-source('functions_for_genename_conversions.R')
-source('https://raw.githubusercontent.com/AdrianS85/helper_R_functions/master/little_helpers.R')
-rm(list = ls(pattern = '(.*)(temp)|(test)(.*)'))
-# To see is na is introduced
-length( subset(x = input_EnsemblGeneId$Probe_ID, subset = is.na(input_EnsemblGeneId$Probe_ID)) )
+############################################
+####### SET OPTIONS FOR THE ANALYSIS ####### 
+############################################
+# setwd('/media/adrians/USB DISK1/Projekty/GRS - GJt Review Stress/FULL_DATASET')
+# source('functions_for_genename_conversions.R')
+# source('https://raw.githubusercontent.com/AdrianS85/helper_R_functions/master/little_helpers.R')
+# rm(list = ls(pattern = '(.*)(temp)|(test)(.*)'))
+# rm(list = ls(pattern = '^(input)(.*)|^left_(.*)'))
+# To see is na is introduced length( subset(x = input_EnsemblGeneId$Probe_ID, subset = is.na(input_EnsemblGeneId$Probe_ID)) )
+
+
+# temp <- biomaRt::getBM(
+#   attributes = c('entrezgene_id', "external_gene_name"),
+#   filters = 'entrezgene_id', 
+#   values = 'LOC16948', 
+#   uniqueRows = T,
+#   mart = biomaRt::useMart(
+#     "ENSEMBL_MART_ENSEMBL", 
+#     dataset = "mmusculus_gene_ensembl")
+# )
+
+# left_to_do_temp <- left_to_do_
+# left_to_do_ <- left_to_do_temp
+# temp <- subset(x = input_EntrezGeneId$Gene_ID, subset = stringr::str_detect(string = input_EntrezGeneId$Gene_ID, pattern = ','))
+
+
+
+WITHIN_COL_SEPARATOR <- ','
+
+stage = 4
+
+if (stage == 1) 
+{
+  opts_everything_column_for_this_analysis <- 'everything' 
+  opts_probe_IDs_already_done_columnName_list <- NA
+} else if (stage == 2) 
+{
+  opts_everything_column_for_this_analysis <- 'everything2'
+  opts_probe_IDs_already_done_columnName_list <- list('Probe_ID_left_from_first_annotating_stage', 'Probe_ID_left_from_first_ncbi_annotation_stage')
+  opts_input_folder_name = 'checked_input_2_stage'
+  load('leftovers')
+  left_to_do_ <- leftovers # When working with leftovers (second stage) start at this etage
+} else if (stage == 3) 
+{
+  opts_everything_column_for_this_analysis <- 'everything2'
+  opts_probe_IDs_already_done_columnName_list <- list('Probe_ID_left_from_first_annotating_stage', 'Probe_ID_left_from_first_ncbi_annotation_stage', 'Probe_ID_left_from_second_annotating_stage', 'Probe_ID_left_from_second_ncbi_annotation_stage')
+  opts_input_folder_name = 'checked_input_3_stage'
+  load('leftovers_2')
+  left_to_do_ <- leftovers
+} else if (stage == 4) 
+{
+  opts_everything_column_for_this_analysis <- 'everything2'
+  opts_probe_IDs_already_done_columnName_list <- list('Probe_ID_left_from_first_annotating_stage', 'Probe_ID_left_from_first_ncbi_annotation_stage', 'Probe_ID_left_from_second_annotating_stage', 'Probe_ID_left_from_second_ncbi_annotation_stage', 'Probe_ID_left_from_third_annotating_stage', 'Probe_ID_left_from_third_ncbi_annotation_stage')
+  opts_input_folder_name = 'checked_input_4_stage'
+  load('leftovers_3')
+  left_to_do_ <- leftovers
+}
 
 
 
 ##############################################
 ####### PREPARE RAW DATA FOR SUBSETING ####### 
 ##############################################
-raw_dataset <- read_preformated_data(str_filename = 'data_whole.tsv', col_types_ = 'nccccccccccccc', int_numbers_are_from = 11, int_numbers_are_to = 13) # In original file 'data_whole.tsv': 1) there are 261697 including the header; 2) there are 261475 values in first column (Paper). This is because some rows are empty (separator rows between experiments/papers). In raw_dataset there are 261696 rows.
+if (stage == 1) {
+  raw_dataset <- read_preformated_data(str_filename = 'data_whole.tsv', col_types_ = 'nccccccccccccc', int_numbers_are_from = 11, int_numbers_are_to = 13) # In original file 'data_whole.tsv': 1) there are 261697 including the header; 2) there are 261475 values in first column (Paper). This is because some rows are empty (separator rows between experiments/papers). In raw_dataset there are 261696 rows.
+  
+  # After removing empty rows, which are defined as rows, that have no value in 'Paper' column, we are left with 261475 value-rich rows. This is in agreement with 'data_whole.tsv' file
+  raw_dataset <- subset(x = raw_dataset, subset = !is.na(raw_dataset$Paper))
+  
+  # Prepare two columns which will include unique identfiers for given row. We need a column including all input for the entry (except entry_number, which will be mistaken for Gene_ID) for easy query of given identifer type in entire entry - column 'everything'
+  raw_dataset$Entry_number <- rownames(raw_dataset)
+  
+  reformated_raw_dataset <- reformat_Gene_ID_column_wrapper(raw_dataset)
+  
+  reformated_raw_dataset <- reformat_GenBank_Accession_column_wrapper(reformated_raw_dataset)
+  
+  reformated_raw_dataset <- reformat_Ensembl_ID_column_wrapper(reformated_raw_dataset)
+  
+  reformated_raw_dataset <- reformat_Gene_symbol_column_wrapper(reformated_raw_dataset)
+  
+  # This column will include all the identfiers that were.
+  reformated_raw_dataset$everything <- as.character(apply(X = reformated_raw_dataset, MARGIN = 1, FUN = function(x) { paste( c(x[1:9], x[11:14]), collapse = '__')  } ))
+  # This column will include all the identfiers except the once that were already used
+  reformated_raw_dataset$everything2 <- reformated_raw_dataset$everything
+  
+  # Here we need to archive original Probe_ID column, and prepare Probe_ID column to be queried against in all subsequent functions. This is because I hardcoded Probe_ID column in analysis functions. Go me.
+  reformated_raw_dataset$Probe_ID_old <- reformated_raw_dataset$Probe_ID
+  reformated_raw_dataset$Probe_ID <- NA
 
-# After removing empty rows, which are defined as rows, that have no value in 'Paper' column, we are left with 261475 value-rich rows. This is in agreement with 'data_whole.tsv' file
-raw_dataset <- subset(x = raw_dataset, subset = !is.na(raw_dataset$Paper))
+  # Count entries in raw data. These lengths were checked by GJt and are in agreement with his raw data. Thus I conclude that it is very likely that raw_dataset is good input for further analysis
+  inputAnalysis_lengths_of_experiments_in_raw_dataset <- split_and_measure_length(df_ = reformated_raw_dataset, split_by_str = 'Experiment')
+  ##############################################
+  ####### PREPARE RAW DATA FOR SUBSETING ####### 
+  ##############################################
+  #############################################################
+  ####### PREPARE DATA FOR MICROARRAY-CENTERED ANALYSIS ####### 
+  #############################################################    
+  # Subset papers to be analyzed via actual microarray Probe_ID. Make sure papers are in correct order.
+  Papers_to_analyze_via_ProbeID <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 42, 43, 54, 56, 59, 60)
+  
+  inputAnalysis_include_in_ProbeID <- reformated_raw_dataset$Paper %in% Papers_to_analyze_via_ProbeID
+  
+  input_ProbeID <- subset(x = reformated_raw_dataset, subset = inputAnalysis_include_in_ProbeID)
+  
+  left_to_do <- subset(x = reformated_raw_dataset, subset = !inputAnalysis_include_in_ProbeID)
+  
+  check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_ProbeID', df_original = reformated_raw_dataset, list_df_splited = list(input_ProbeID, left_to_do))
+  
+  # Proper Probe_IDs are in different columns depending on the Paper. Thus we need to ascribe Probe_ID column with appropriate values
+  temp_Probe_ID_old <- subset(x = input_ProbeID, subset = input_ProbeID$Paper %in% c(1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 42, 43, 54, 56, 59, 60))
+  temp_Probe_ID_old$Probe_ID <- temp_Probe_ID_old$Probe_ID_old
+  
+  temp_GEO_ID <- subset(x = input_ProbeID, subset = input_ProbeID$Paper %in% c(2, 4))
+  temp_GEO_ID$Probe_ID <- temp_GEO_ID$`GEO ID`
+  
+  input_ProbeID <- rbind(temp_Probe_ID_old, temp_GEO_ID)
+  input_ProbeID <- remove_used_name_from_everything2_wrapper(input_ProbeID)
 
-# Prepare two columns which will include unique identfiers for given row. We need a column including all input for the entry (except entry_number, which will be mistaken for Gene_ID) for easy query of given identifer type in entire entry - column 'everything'
-raw_dataset$Entry_number <- rownames(raw_dataset)
-raw_dataset$everything <- as.character(apply(X = raw_dataset, MARGIN = 1, FUN = function(x) { paste( c(x[1:9], x[11:14]), collapse = '__')  } ))
-
-# Here we need to archive original Probe_ID column, and prepare Probe_ID column to be queried against in all subsequent functions. This is because I hardcoded Probe_ID column in analysis functions. Go me.
-raw_dataset$Probe_ID_old <- raw_dataset$Probe_ID
-raw_dataset$Probe_ID <- NA
-
-
-# Count entries in raw data. These lengths were checked by GJt and are in agreement with his raw data. Thus I conclude that it is very likely that raw_dataset is good input for further analysis
-inputAnalysis_lengths_of_experiments_in_raw_dataset <- split_and_measure_length(df_ = raw_dataset, split_by_str = 'Experiment')
-##############################################
-####### PREPARE RAW DATA FOR SUBSETING ####### 
-##############################################
-
-
-
-#############################################################
-####### PREPARE DATA FOR MICROARRAY-CENTERED ANALYSIS ####### 
-#############################################################    
-# Subset papers to be analyzed via actual microarray Probe_ID. Make sure papers are in correct order.
-Papers_to_analyze_via_ProbeID <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 42, 43, 54, 56, 59, 60, 72)
-
-inputAnalysis_include_in_ProbeID <- raw_dataset$Paper %in% Papers_to_analyze_via_ProbeID
-
-input_ProbeID <- subset(x = raw_dataset, subset = inputAnalysis_include_in_ProbeID)
-
-left_to_do <- subset(x = raw_dataset, subset = !inputAnalysis_include_in_ProbeID)
-
-inputAnalysis_was_spliting_good_1 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_ProbeID', df_original = raw_dataset, list_df_splited = list(input_ProbeID, left_to_do))
-
-# Proper Probe_IDs are in different columns depending on the Paper. Thus we need to ascribe Probe_ID column with appropriate values
-temp_Probe_ID_old <- subset(x = input_ProbeID, subset = input_ProbeID$Paper %in% c(1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 42, 43, 54, 56, 59, 60, 72))
-temp_Probe_ID_old$Probe_ID <- temp_Probe_ID_old$Probe_ID_old
-
-temp_GEO_ID <- subset(x = input_ProbeID, subset = input_ProbeID$Paper == 2)
-temp_GEO_ID$Probe_ID <- temp_GEO_ID$`GEO ID`
-
-inputAnalysis_was_spliting_good_ProbeID_vs_GEOID <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_ProbeID_vs_GEO', df_original = input_ProbeID, list_df_splited = list(temp_Probe_ID_old, temp_GEO_ID))
-
-input_ProbeID <- rbind(temp_Probe_ID_old, temp_GEO_ID)
-input_ProbeID <- input_ProbeID[order(input_ProbeID$Paper),] 
-
-rm(inputAnalysis_include_in_ProbeID, temp_Probe_ID_old, temp_GEO_ID)
-#############################################################
-####### PREPARE DATA FOR MICROARRAY-CENTERED ANALYSIS ####### 
-#############################################################
-
-
-
-###################################################################
-####### PREPARE DATA FOR GEMMA MICROARRAY-CENTERED ANALYSIS ####### 
-###################################################################
-Papers_to_analyze_via_Gemma <- c(31, 33)
-
-inputAnalysis_include_in_Gemma <- left_to_do$Paper %in% Papers_to_analyze_via_Gemma
-
-input_Gemma <- subset(x = left_to_do, subset = inputAnalysis_include_in_Gemma)
-
-left_to_do_2 <- subset(x = left_to_do, subset = !inputAnalysis_include_in_Gemma)
-
-inputAnalysis_was_spliting_good_2 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_Gemma', df_original = left_to_do, list_df_splited = list(input_Gemma, left_to_do_2))
-
-rm(inputAnalysis_include_in_Gemma)
-
-input_Gemma$Probe_ID <- input_Gemma$Probe_ID_old
-
-input_Gemma <- input_Gemma[order(input_Gemma$Paper),] 
+  input_ProbeID <- input_ProbeID[order(input_ProbeID$Paper),] 
+  
+  # Quality checks
+  check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_ProbeID_vs_GEO', df_original = input_ProbeID, list_df_splited = list(temp_Probe_ID_old, temp_GEO_ID))
+  get_all_symbols_in_chrvec(input_ProbeID$Probe_ID)
+  #############################################################
+  ####### PREPARE DATA FOR MICROARRAY-CENTERED ANALYSIS ####### 
+  #############################################################
+  ###################################################################
+  ####### PREPARE DATA FOR GEMMA MICROARRAY-CENTERED ANALYSIS ####### 
+  ###################################################################
+  Papers_to_analyze_via_Gemma <- c(31, 33)
+  
+  inputAnalysis_include_in_Gemma <- left_to_do$Paper %in% Papers_to_analyze_via_Gemma
+  
+  input_Gemma <- subset(x = left_to_do, subset = inputAnalysis_include_in_Gemma)
+  
+  left_to_do_ <- subset(x = left_to_do, subset = !inputAnalysis_include_in_Gemma)
+  
+  input_Gemma$Probe_ID <- input_Gemma$Probe_ID_old
+  
+  input_Gemma <- remove_used_name_from_everything2_wrapper(input_Gemma)
+  
+  input_Gemma <- input_Gemma[order(input_Gemma$Paper),] 
+  
+  # Quality checks
+  check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_Gemma', df_original = left_to_do, list_df_splited = list(input_Gemma, left_to_do_))
+  get_all_symbols_in_chrvec(input_Gemma$Probe_ID)
+  
+  rm(inputAnalysis_include_in_ProbeID, temp_Probe_ID_old, temp_GEO_ID, Papers_to_analyze_via_ProbeID, inputAnalysis_include_in_Gemma, Papers_to_analyze_via_Gemma, left_to_do)
+}
 ###################################################################
 ####### PREPARE DATA FOR GEMMA MICROARRAY-CENTERED ANALYSIS ####### 
 ###################################################################
@@ -93,23 +157,15 @@ input_Gemma <- input_Gemma[order(input_Gemma$Paper),]
 ####### PREPARE DATA FOR ENSEMBL GENE ANALYSIS ####### 
 ######################################################
 # This detects all entries in ensembl_gene_id from data_v4, Ive checked. Yet, the lenght of this input is much lower than of data_v4_ensembl_gene_id.tsv?
-pattern_for_EnsemblGeneID = '(ENS)(.*)G0(.*)'
+temp <- prepare_input(regex_ = '(ENS)(.*)G0(.*)', df_ = left_to_do_, regex_two_for_extracting_identifiers_from_string = '(__.*)|(,.*)') ### !!! Check czy na następnych etapach skrypt bierze tutaj kolejny identyfikator
 
-inputAnalysis_include_in_EnsemblGeneID <-
-  stringr::str_detect(string = left_to_do_2$everything, pattern = pattern_for_EnsemblGeneID)
 
-input_EnsemblGeneId <- subset(x = left_to_do_2, subset = inputAnalysis_include_in_EnsemblGeneID)
+input_EnsemblGeneId <- temp[[1]] 
+left_to_do_ <- temp[[2]]
+temp[[3]]
+get_all_symbols_in_chrvec(input_EnsemblGeneId$Probe_ID)
 
-left_to_do_3 <- subset(x = left_to_do_2, subset = !inputAnalysis_include_in_EnsemblGeneID)
-
-inputAnalysis_was_spliting_good_3 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_EnsemblGeneId', df_original = left_to_do_2, list_df_splited = list(input_EnsemblGeneId, left_to_do_3))
-
-rm(inputAnalysis_include_in_EnsemblGeneID)
-
-input_EnsemblGeneId$Probe_ID <- extract_from_string(chr_vec = input_EnsemblGeneId$everything, regex_one = pattern_for_EnsemblGeneID, regex_two = '__.*')
-input_EnsemblGeneId$Probe_ID <- stringr::str_remove(string = input_EnsemblGeneId$Probe_ID, pattern = '( \\+ )(.*)')
-
-input_EnsemblGeneId <- input_EnsemblGeneId[order(input_EnsemblGeneId$Paper),] 
+input_EnsemblGeneId <- remove_used_name_from_everything2_wrapper(input_EnsemblGeneId)
 ######################################################
 ####### PREPARE DATA FOR ENSEMBL GENE ANALYSIS ####### 
 ######################################################
@@ -119,70 +175,81 @@ input_EnsemblGeneId <- input_EnsemblGeneId[order(input_EnsemblGeneId$Paper),]
 ############################################################
 ####### PREPARE DATA FOR ENSEMBL TRANSCRIPT ANALYSIS ####### 
 ############################################################
-pattern_for_EnsemblTranscriptID = '(ENS)(.*)(T0)(.*)'
+temp <- prepare_input(regex_ = '(ENS)(.*)(T0)(.*)', df_ = left_to_do_, regex_two_for_extracting_identifiers_from_string = '(__.*)|(,.*)') ### !!! Check czy na następnych etapach skrypt bierze tutaj kolejny identyfikator
 
-inputAnalysis_include_in_EnsemblTranscriptID <-
-  stringr::str_detect(string = left_to_do_3$everything, pattern = pattern_for_EnsemblTranscriptID)
+input_EnsemblTranscriptId <- temp[[1]] 
+left_to_do_ <- temp[[2]]
+temp[[3]]
+get_all_symbols_in_chrvec(input_EnsemblTranscriptId$Probe_ID)
 
-input_EnsemblTranscriptId <- subset(x = left_to_do_3, subset = inputAnalysis_include_in_EnsemblTranscriptID)
-
-left_to_do_4 <- subset(x = left_to_do_3, subset = !inputAnalysis_include_in_EnsemblTranscriptID)
-
-inputAnalysis_was_spliting_good_4 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_EnsemblTranscriptId', df_original = left_to_do_3, list_df_splited = list(input_EnsemblTranscriptId, left_to_do_4))
-
-rm(inputAnalysis_include_in_EnsemblTranscriptID)
-
-input_EnsemblTranscriptId$Probe_ID <- extract_from_string(chr_vec = input_EnsemblTranscriptId$everything, regex_one = pattern_for_EnsemblTranscriptID, regex_two = '__.*')
-
-input_EnsemblTranscriptId <- input_EnsemblTranscriptId[order(input_EnsemblTranscriptId$Paper),] 
+input_EnsemblTranscriptId <- remove_used_name_from_everything2_wrapper(input_EnsemblTranscriptId)
 ############################################################
 ####### PREPARE DATA FOR ENSEMBL TRANSCRIPT ANALYSIS ####### 
 ############################################################
 
 
-
+# temp_left_to_do_ <- left_to_do_
 #########################################################################
 ####### PREPARE DATA FOR STANDARD AND LOC-DERIVED ENTREZ ANALYSIS ####### 
 #########################################################################
-pattern_for_EntrezGeneID = '[1-9](\\d*)'
+temp <- prepare_input(regex_ = '[1-9](\\d*)', df_ = left_to_do_, col_everything = 'Gene_ID', col_get_resulting_identifer_from_here = 'Gene_ID')
 
-inputAnalysis_include_in_EntrezGeneID <- stringr::str_detect(string = left_to_do_4$Gene_ID, pattern = pattern_for_EntrezGeneID)
 
-input_EntrezGeneId <- subset(x = left_to_do_4, subset = inputAnalysis_include_in_EntrezGeneID)
+input_EntrezGeneId <- temp[[1]] 
+input_EntrezGeneId$Probe_ID <- get_geneNames_filtered_with_already_done_columns(input_gene_symbol_ = input_EntrezGeneId, colname_with_output_probeNames = 'Gene_ID')
+### !!! testing
+# test <- input_EntrezGeneId[c('7494', '49153'),]
+# test$Probe_ID_left_from_first_annotating_stage <- '100036568'
+# test$Probe_ID_left_from_first_ncbi_annotation_stage <- '108978'
+# 
+# test$Probe_ID <- get_geneNames_filtered_with_already_done_columns(input_gene_symbol_ = test, colname_with_output_probeNames = 'Gene_ID')
+### !!! testing
 
-left_to_do_5 <- subset(x = left_to_do_4, subset = !inputAnalysis_include_in_EntrezGeneID | is.na(inputAnalysis_include_in_EntrezGeneID))
 
-inputAnalysis_was_spliting_good_5 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_EntrezGeneId', df_original = left_to_do_4, list_df_splited = list(input_EntrezGeneId, left_to_do_5))
+left_to_do_ <- temp[[2]]
+temp[[3]]
+get_all_symbols_in_chrvec(input_EntrezGeneId$Probe_ID)
 
-rm(inputAnalysis_include_in_EntrezGeneID)
+#This moves entries with empty probe_id (which means, that probe_id was removed in get_geneNames_filtered_with_already_done_columns) to left_to_do_
+if(stage != 1)
+{
+  empty_ids <- subset(x = input_EntrezGeneId, subset = input_EntrezGeneId$Probe_ID == '')
+  good_ids <- subset(x = input_EntrezGeneId, subset = input_EntrezGeneId$Probe_ID != '')
+  
+  check_was_the_spliting_of_df_by_filtering_ok(df_original = input_EntrezGeneId, list_df_splited = list(empty_ids, good_ids))
+  
+  input_EntrezGeneId <- good_ids
+  left_to_do_ <- rbind(left_to_do_, empty_ids)
+}
 
-input_EntrezGeneId$Probe_ID <- input_EntrezGeneId$Gene_ID
+# This removes LOCs corresponding to entrezIDs that were used in this step
+input_EntrezGeneId <- remove_used_entrezID_from_everything2_wrapper(input_EntrezGeneId)
 ####### PREPARE DATA FOR ENTREZ GENE ANALYSIS ####### 
 ####### PREPARE DATA FOR ENTREZ-LOC GENE ANALYSIS ####### 
 # Subset entries to be analyzed via Entrez Gene from LOC numbers - LOC - genes of uncertain function. When a published symbol is not available, and orthologs have not yet been determined, Gene will provide a symbol that is constructed as 'LOC' + the GeneID. Therefore LOC is basically GeneID, and is thus unique
-pattern_for_EntrezGeneID_LOC = '(LOC)(.*)'
-inputAnalysis_include_in_EntrezGeneID_LOC <- stringr::str_detect(string = left_to_do_5$everything, pattern = pattern_for_EntrezGeneID_LOC)
 
-input_EntrezGeneID_LOC <- subset(x = left_to_do_5, subset = inputAnalysis_include_in_EntrezGeneID_LOC)
 
-left_to_do_6 <- subset(x = left_to_do_5, subset = !inputAnalysis_include_in_EntrezGeneID_LOC)
+temp <- prepare_input(regex_ = '(LOC)(.*)', df_ = left_to_do_, regex_two_for_extracting_identifiers_from_string = '__.*|(,.*)')
 
-inputAnalysis_was_spliting_good_6 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_EntrezGeneID_LOC', df_original = left_to_do_5, list_df_splited = list(input_EntrezGeneID_LOC, left_to_do_6))
+input_EntrezGeneID_LOC <- temp[[1]] 
+left_to_do_ <- temp[[2]]
+temp[[3]]
+get_all_symbols_in_chrvec(input_EntrezGeneID_LOC$Probe_ID)
 
-rm(inputAnalysis_include_in_EntrezGeneID_LOC)
+input_EntrezGeneID_LOC <- remove_used_name_from_everything2_wrapper(input_EntrezGeneID_LOC)
 
-input_EntrezGeneID_LOC$Probe_ID <- extract_from_string(chr_vec = input_EntrezGeneID_LOC$everything, regex_one = pattern_for_EntrezGeneID_LOC, regex_two = '__.*')
+input_EntrezGeneID_LOC$Probe_ID <- stringr::str_remove_all(string = input_EntrezGeneID_LOC$Probe_ID, pattern = 'LOC')
+### !!! BEWARE! entrez loc depend on entrez gene id in such way, that if in previous stage entrez number for given LOC was used, than the number part of this LOC is also removed. This may lead to empty Probe_ID number for this LOC. Hence, we need to search for empty '' input_EntrezGeneID_LOC$Probe_ID entries and put them into left_to_do_
 
-# To transform LOC id into entrezID we need to remove LOC
-input_EntrezGeneID_LOC$Probe_ID <- stringr::str_remove(string = input_EntrezGeneID_LOC$Probe_ID, pattern = '(LOC)')
-input_EntrezGeneID_LOC$Probe_ID <- stringr::str_remove(string = input_EntrezGeneID_LOC$Probe_ID, pattern = '///(.*)')
-####### PREPARE DATA FOR ENTREZ-LOC GENE ANALYSIS ####### 
-####### PREPARE DATA FOR STANDARD AND LOC-DERIVED ENTREZ ANALYSIS ####### 
 input_EntrezGeneId <- rbind(input_EntrezGeneId, input_EntrezGeneID_LOC)
 
 input_EntrezGeneId <- input_EntrezGeneId[order(input_EntrezGeneId$Paper),] 
 
-rm(input_EntrezGeneID_LOC)
+get_all_symbols_in_chrvec(input_EntrezGeneId$Probe_ID)
+
+rm(input_EntrezGeneID_LOC, empty_ids, good_ids)
+####### PREPARE DATA FOR ENTREZ-LOC GENE ANALYSIS ####### 
+####### PREPARE DATA FOR STANDARD AND LOC-DERIVED ENTREZ ANALYSIS ####### 
 ####### PREPARE DATA FOR STANDARD AND LOC-DERIVED ENTREZ ANALYSIS ####### 
 #########################################################################
 ####### PREPARE DATA FOR STANDARD AND LOC-DERIVED ENTREZ ANALYSIS ####### 
@@ -193,94 +260,20 @@ rm(input_EntrezGeneID_LOC)
 ####################################################
 ####### PREPARE DATA FOR REFSEQMRNA ANALYSIS ####### 
 ####################################################
-pattern_for_RefSeqMRNA = '(NM_)(\\d*)(.*)'
-inputAnalysis_include_in_RefSeqMRNA <- stringr::str_detect(string = left_to_do_6$everything, pattern = pattern_for_RefSeqMRNA)
+temp <- prepare_input(regex_ = '(NM_)(\\d*)(.*)', df_ = left_to_do_, regex_two_for_extracting_identifiers_from_string = '(__.*)|(,.*)')
 
-input_RefSeqMRNA <- subset(x = left_to_do_6, subset = inputAnalysis_include_in_RefSeqMRNA)
+input_RefSeqMRNA <- temp[[1]] 
+left_to_do_ <- temp[[2]]
+temp[[3]]
+get_all_symbols_in_chrvec(input_RefSeqMRNA$Probe_ID)
 
-left_to_do_7 <- subset(x = left_to_do_6, subset = !inputAnalysis_include_in_RefSeqMRNA)
+input_RefSeqMRNA <- remove_used_name_from_everything2_wrapper(input_RefSeqMRNA)
 
-inputAnalysis_was_spliting_good_7 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_RefSeqMRNA', df_original = left_to_do_6, list_df_splited = list(input_RefSeqMRNA, left_to_do_7))
-
-rm(inputAnalysis_include_in_RefSeqMRNA)
-
-input_RefSeqMRNA$Probe_ID <- extract_from_string(chr_vec = input_RefSeqMRNA$everything, regex_one = pattern_for_RefSeqMRNA, regex_two = '__.*')
-
-# ensembl doesnt recognize NM_ identifier that include . (splicing variants)
-input_RefSeqMRNA$Probe_ID <- stringr::str_remove(string = input_RefSeqMRNA$Probe_ID, pattern = '\\.(.*)')
-####### PREPARE DATA FOR REFSEQMRNA ANALYSIS ####### 
-####### PREPARE DATA FOR REFSEQMRNA CORRUPTED ANALYSIS ####### 
-# Subset corrupted (no _ after NM) entries to be analyzed via RefSeqMRNA
-inputAnalysis_include_in_RefSeqMRNA_corrupted <- stringr::str_detect(string = left_to_do_7$everything, pattern = '(NM )(\\d*)')
-
-input_RefSeqMRNA_corrupted <- subset(x = left_to_do_7, subset = inputAnalysis_include_in_RefSeqMRNA_corrupted)
-
-left_to_do_8 <- subset(x = left_to_do_7, subset = !inputAnalysis_include_in_RefSeqMRNA_corrupted)
-
-inputAnalysis_was_spliting_good_8 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_RefSeqMRNA_corrupted', df_original = left_to_do_7, list_df_splited = list(input_RefSeqMRNA_corrupted, left_to_do_8))
-
-rm(inputAnalysis_include_in_RefSeqMRNA_corrupted)
-
-input_RefSeqMRNA_corrupted$GenBank_Accession <- stringr::str_replace(string = input_RefSeqMRNA_corrupted$GenBank_Accession, pattern = ' ', replacement = '_')
-
-input_RefSeqMRNA_corrupted$Probe_ID <- input_RefSeqMRNA_corrupted$GenBank_Accession
-####### PREPARE DATA FOR REFSEQMRNA CORRUPTED ANALYSIS ####### 
-####### PREPARE DATA FOR PROPER AND CORRUPTED REFSEQMRNA ANALYSIS ####### 
-input_RefSeqMRNA <- rbind(input_RefSeqMRNA, input_RefSeqMRNA_corrupted)
-
-input_RefSeqMRNA <- input_RefSeqMRNA[order(input_RefSeqMRNA$Paper),] 
-
-rm(input_RefSeqMRNA_corrupted)
+# This is because biomart does not recognize transcript variants (so transcript names which have '.' after the name)
+input_RefSeqMRNA$Probe_ID <- stringr::str_remove_all(string = input_RefSeqMRNA$Probe_ID, pattern = '\\..*')
 ####################################################
 ####### PREPARE DATA FOR REFSEQMRNA ANALYSIS ####### 
 ####################################################
-
-
-
-########################################################################
-####### PREPARE DATA FOR PROPER AND CORRUPTED MGI GENES ANALYSIS ####### 
-########################################################################
-# Study leftover ids: Rik - MGI genes with no canonical name yet
-pattern_for_mgi_symbol = '(.*)(\\d*)(Rik)'
-inputAnalysis_include_in_mgi_symbol <- stringr::str_detect(string = left_to_do_8$everything, pattern = pattern_for_mgi_symbol)
-
-input_mgi_symbol <- subset(x = left_to_do_8, subset = inputAnalysis_include_in_mgi_symbol)
-
-left_to_do_9 <- subset(x = left_to_do_8, subset = !inputAnalysis_include_in_mgi_symbol)
-
-inputAnalysis_was_spliting_good_9 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_mgi_symbol', df_original = left_to_do_8, list_df_splited = list(input_mgi_symbol, left_to_do_9))
-
-rm(inputAnalysis_include_in_mgi_symbol)
-
-input_mgi_symbol$Probe_ID <- extract_from_string(chr_vec = input_mgi_symbol$everything, regex_one = pattern_for_mgi_symbol, regex_two = '(.*)__')
-
-input_mgi_symbol$Probe_ID <- stringr::str_remove(string = input_mgi_symbol$Probe_ID, pattern = ',(.*)')
-####### PREPARE DATA FOR MGI GENES ANALYSIS ####### 
-####### PREPARE DATA FOR CORRUPTED MGI GENES ANALYSIS ####### 
-# Study leftover ids: Rik - MGI genes with no canonical name yet corrupted RIKs
-inputAnalysis_include_in_mgi_symbol_corrupted <- stringr::str_detect(string = left_to_do_9$everything, pattern = '(\\d*)(RIK)')
-
-input_mgi_symbol_corrupted <- subset(x = left_to_do_9, subset = inputAnalysis_include_in_mgi_symbol_corrupted)
-
-left_to_do_10 <- subset(x = left_to_do_9, subset = !inputAnalysis_include_in_mgi_symbol_corrupted)
-
-inputAnalysis_was_spliting_good_10 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_mgi_symbol_corrupted', df_original = left_to_do_9, list_df_splited = list(input_mgi_symbol_corrupted, left_to_do_10))
-
-rm(inputAnalysis_include_in_mgi_symbol_corrupted)
-
-input_mgi_symbol_corrupted$Gene_symbol <- stringr::str_replace(string = input_mgi_symbol_corrupted$Gene_symbol, pattern = 'RIK', replacement = 'Rik')
-
-input_mgi_symbol_corrupted$Probe_ID <- input_mgi_symbol_corrupted$Gene_symbol
-####### PREPARE DATA FOR CORRUPTED MGI GENES ANALYSIS ####### 
-####### PREPARE DATA FOR PROPER AND CORRUPTED MGI GENES ANALYSIS ####### 
-input_mgi_symbol <- rbind(input_mgi_symbol, input_mgi_symbol_corrupted)
-
-input_mgi_symbol <- input_mgi_symbol[order(input_mgi_symbol$Paper),] 
-
-rm(input_mgi_symbol_corrupted)
-########################################################################
-####### PREPARE DATA FOR PROPER AND CORRUPTED MGI GENES ANALYSIS ####### 
-########################################################################
 
 
 
@@ -288,119 +281,59 @@ rm(input_mgi_symbol_corrupted)
 ####### PREPARE DATA FOR ACCESSION ANALYSIS #######
 ###################################################
 # Study leftover ids: XM_ - most of these names are substituted by NM_ sequences, but NCBI search does not return this new NM_ gene. Stupid.
-
 # Study leftover ids: [letter][numbers] - a) ncbi accession nb. An accession number applies to the complete record and is usually a combination of a letter(s) and numbers, such as a single letter followed by five digits (e.g., U12345) or two letters followed by six digits (e.g., AF123456). Some accessions might be longer, depending on the type of sequence record. Accession numbers do not change, even if information in the record is changed at the author's request. Sometimes, however, an original accession number might become secondary to a newer accession number, if the authors make a new submission that combines previous sequences, or if for some reason a new submission supercedes an earlier record. These IDs are actually the same in ENA ('embl' or 'clone_based_ensembl_gene') and in ncbi nucleotide
-pattern_for_accession = '__[A-Z]{1,2}\\d{5,}'
-inputAnalysis_include_in_accession <- stringr::str_detect(string = left_to_do_10$everything, pattern = pattern_for_accession)
+temp <- prepare_input(regex_ = '(?<![A-Za-z]{1})[A-Z]{1,2}\\d{5,}(?=(_|,))', df_ = left_to_do_, regex_two_for_extracting_identifiers_from_string = '(__.*)|(,.*)')
+# temp <- prepare_input(regex_ = '(?<![A-Za-z]{1})[A-Z]{1,2}\\d{5,}', df_ = left_to_do_, regex_two_for_extracting_identifiers_from_string = '(__.*)|(,.*)')
 
-input_accession <- subset(x = left_to_do_10, subset = inputAnalysis_include_in_accession)
+input_accession <- temp[[1]] 
+left_to_do_ <- temp[[2]]
+temp[[3]]
 
-left_to_do_11 <- subset(x = left_to_do_10, subset = !inputAnalysis_include_in_accession)
+get_all_symbols_in_chrvec(input_accession$Probe_ID)
 
-inputAnalysis_was_spliting_good_11 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_accession', df_original = left_to_do_10, list_df_splited = list(input_accession, left_to_do_11))
-
-rm(inputAnalysis_include_in_accession)
-
-input_accession$Probe_ID <- extract_from_string(chr_vec = input_accession$everything, regex_one = pattern_for_accession, regex_two = '__')
-
-input_accession <- input_accession[order(input_accession$Paper),] 
+input_accession <- remove_used_name_from_everything2_wrapper(input_accession)
 ###################################################
 ####### PREPARE DATA FOR ACCESSION ANALYSIS #######
 ###################################################
 
 
 
-###################################################################
-####### PREPARE DATA FOR RGD_GM_RNA_7SK GENE NAMES ANALYSIS #######
-###################################################################
-pattern_for_rgd = '(RGD)(.*)'
-inputAnalysis_include_in_rgd <- stringr::str_detect(string = left_to_do_11$Gene_symbol, pattern = pattern_for_rgd)
-
-input_rgd <- subset(x = left_to_do_11, subset = inputAnalysis_include_in_rgd)
-
-left_to_do_12 <- subset(x = left_to_do_11, subset = !inputAnalysis_include_in_rgd | is.na(inputAnalysis_include_in_rgd))
-
-inputAnalysis_was_spliting_good_12 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_rgd', df_original = left_to_do_11, list_df_splited = list(input_rgd, left_to_do_12))
-
-rm(inputAnalysis_include_in_rgd)
-
-input_rgd$Probe_ID <- extract_from_string(chr_vec = input_rgd$everything, regex_one = pattern_for_rgd, regex_two = '__(.*)') 
-
-input_rgd$Probe_ID <- stringr::str_remove(string = input_rgd$Probe_ID, pattern = '_predicted|_PREDICTED')
-####### PREPARE DATA FOR RGD - RAT GENOME DATABASE ANALYSIS ####### 
-####### PREPARE DATA FOR GM ANALYSIS ####### 
-# Gm - annotated genes that do not have a canonical name (yet)
-pattern_for_gm = '(Gm)[0-9](.*)'
-inputAnalysis_include_in_gm <- stringr::str_detect(string = left_to_do_12$Gene_symbol, pattern = pattern_for_gm)
-
-input_gm <- subset(x = left_to_do_12, subset = inputAnalysis_include_in_gm)
-
-left_to_do_13 <- subset(x = left_to_do_12, subset = !inputAnalysis_include_in_gm | is.na(inputAnalysis_include_in_gm))
-
-inputAnalysis_was_spliting_good_13 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_gm', df_original = left_to_do_12, list_df_splited = list(input_gm, left_to_do_13))
-
-rm(inputAnalysis_include_in_gm)
-
-input_gm$Probe_ID <- extract_from_string(chr_vec = input_gm$everything, regex_one = pattern_for_gm, regex_two = '__(.*)')
-
-input_gm$Probe_ID <- stringr::str_remove(string = input_gm$Probe_ID, pattern = ',(.*)')
-####### PREPARE DATA FOR GM ANALYSIS ####### 
-####### PREPARE DATA FOR RNA ANALYSIS ####### 
-inputAnalysis_include_in_RNA <- stringr::str_detect(string = left_to_do_13$Gene_symbol, pattern = '(RNA)(.*)')
-
-input_RNA <- subset(x = left_to_do_13, subset = inputAnalysis_include_in_RNA)
-
-left_to_do_14 <- subset(x = left_to_do_13, subset = !inputAnalysis_include_in_RNA | is.na(inputAnalysis_include_in_RNA))
-
-inputAnalysis_was_spliting_good_14 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_RNA', df_original = left_to_do_13, list_df_splited = list(input_RNA, left_to_do_14))
-
-rm(inputAnalysis_include_in_RNA)
-
-input_RNA$Probe_ID <- input_RNA$Gene_symbol
-####### PREPARE DATA FOR RNA ANALYSIS ####### 
-####### PREPARE DATA FOR 7SK ANALYSIS ####### 
-inputAnalysis_include_in_7SK <- stringr::str_detect(string = left_to_do_14$Gene_symbol, pattern = '(7SK)')
-
-input_7SK <- subset(x = left_to_do_14, subset = inputAnalysis_include_in_7SK)
-
-left_to_do_15 <- subset(x = left_to_do_14, subset = !inputAnalysis_include_in_7SK | is.na(inputAnalysis_include_in_7SK))
-
-inputAnalysis_was_spliting_good_15 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_7SK', df_original = left_to_do_14, list_df_splited = list(input_7SK, left_to_do_15))
-
-rm(inputAnalysis_include_in_7SK)
-
-input_7SK$Probe_ID <- input_7SK$Gene_symbol
-####### PREPARE DATA FOR 7SK ANALYSIS ####### 
-####### PREPARE DATA FOR RGD_GM_RNA_7SK ANALYSIS ####### 
-input_RGD_GM_RNA_7SK <- rbind(input_rgd, input_gm, input_RNA, input_7SK)
-
-input_RGD_GM_RNA_7SK <- input_RGD_GM_RNA_7SK[order(input_RGD_GM_RNA_7SK$Paper),] 
-
-rm(input_rgd, input_gm, input_RNA, input_7SK)
-###################################################################
-####### PREPARE DATA FOR RGD_GM_RNA_7SK GENE NAMES ANALYSIS #######
-###################################################################
-
-
-
 ##################################################################
 ####### PREPARE DATA FOR GOOD AND BAD GENE_SYMBOL ANALYSIS #######
 ##################################################################
-inputAnalysis_include_in_bad_gene_symbol <- left_to_do_15$Gene_symbol %in% c('–', 'N/A')
+input_bad_gene_symbol <- subset(x = left_to_do_, subset = is.na(left_to_do_$Gene_symbol))
 
-input_bad_gene_symbol <- subset(x = left_to_do_15, subset = inputAnalysis_include_in_bad_gene_symbol | is.na(left_to_do_15$Gene_symbol))
+input_gene_symbol <- subset(x = left_to_do_, subset = !is.na(left_to_do_$Gene_symbol))
 
-input_gene_symbol <- subset(x = left_to_do_15, subset = !inputAnalysis_include_in_bad_gene_symbol)
-input_gene_symbol <- subset(x = input_gene_symbol, subset = !is.na(input_gene_symbol$Gene_symbol))
+# Quality checks
+check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_gene_symbol', df_original = left_to_do_, list_df_splited = list(input_bad_gene_symbol, input_gene_symbol))
 
-inputAnalysis_was_spliting_good_16 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_gene_symbol', df_original = left_to_do_15, list_df_splited = list(input_bad_gene_symbol, input_gene_symbol))
+
+
+get_all_symbols_in_chrvec(input_gene_symbol$Probe_ID)
 
 input_gene_symbol$Probe_ID <- input_gene_symbol$Gene_symbol
+input_gene_symbol$Probe_ID <- get_geneNames_filtered_with_already_done_columns(input_gene_symbol_ = input_gene_symbol)
 
-input_gene_symbol$Probe_ID <- stringr::str_remove(string = input_gene_symbol$Probe_ID, pattern = ',(.*)|_(.*)')
+
 
 input_gene_symbol <- input_gene_symbol[order(input_gene_symbol$Paper),] 
 input_bad_gene_symbol <- input_bad_gene_symbol[order(input_bad_gene_symbol$Paper),]
+
+
+#This moves entries with empty probe_id (which means, that probe_id was removed in get_geneNames_filtered_with_already_done_columns) to left_to_do_
+if(stage != 1)
+{
+  empty_ids <- subset(x = input_gene_symbol, subset = input_gene_symbol$Probe_ID == '')
+  good_ids <- subset(x = input_gene_symbol, subset = input_gene_symbol$Probe_ID != '')
+  
+  check_was_the_spliting_of_df_by_filtering_ok(df_original = input_gene_symbol, list_df_splited = list(empty_ids, good_ids))
+  
+  input_gene_symbol <- good_ids
+  input_bad_gene_symbol <- rbind(input_bad_gene_symbol, empty_ids)
+}
+
+rm(left_to_do_, empty_ids, good_ids)
 ##################################################################
 ####### PREPARE DATA FOR GOOD AND BAD GENE_SYMBOL ANALYSIS #######
 ##################################################################
@@ -411,372 +344,26 @@ input_bad_gene_symbol <- input_bad_gene_symbol[order(input_bad_gene_symbol$Paper
 ####### CHECK AND WRITE ALL DATA #######
 ########################################
 # Here I show that dataset composed of all the specified subsets is equal to raw_dataset
-rebuild_dataset_list <- list(input_ProbeID, input_Gemma, input_EnsemblGeneId, input_EnsemblTranscriptId, input_EntrezGeneId, input_RefSeqMRNA, input_mgi_symbol, input_accession, input_RGD_GM_RNA_7SK, input_bad_gene_symbol, input_gene_symbol)
+if (stage == 1)
+{
+  rebuild_dataset_list_first_stage <- list(input_ProbeID, input_Gemma, input_EnsemblGeneId, input_EnsemblTranscriptId, input_EntrezGeneId, input_RefSeqMRNA, input_accession, input_bad_gene_symbol, input_gene_symbol)
+  rebuild_dataset_list_names_first_stage <- list('input_ProbeID', 'input_Gemma', 'input_EnsemblGeneId', 'input_EnsemblTranscriptId', 'input_EntrezGeneId', 'input_RefSeqMRNA', 'input_accession', 'input_bad_gene_symbol', 'input_gene_symbol') # FIRST STAGE
+  
+  rebuild_dataset <- rlist::list.rbind(rebuild_dataset_list_first_stage)
+  
+  write_inputs(lists_ = rebuild_dataset_list_first_stage, list_names_list_str = rebuild_dataset_list_names_first_stage, dir_name_str = 'checked_input_1_stage')
 
-rebuild_dataset <- rlist::list.rbind(rebuild_dataset_list)
-
-inputAnalysis_lengths_of_experiments_in_rebuild_dataset <- split_and_measure_length(df_ = rebuild_dataset, split_by_str = 'Experiment')
-
-inputAnalysis_lengths_of_experiments_in_rebuild_dataset == inputAnalysis_lengths_of_experiments_in_raw_dataset
-
-# Print lists. They should be good and we need not repeat this script.
-rebuild_dataset_list_names <- list('input_ProbeID', 'input_Gemma', 'input_EnsemblGeneId', 'input_EnsemblTranscriptId', 'input_EntrezGeneId', 'input_RefSeqMRNA', 'input_mgi_symbol', 'input_accession', 'input_RGD_GM_RNA_7SK', 'input_bad_gene_symbol', 'input_gene_symbol')
-write_inputs(lists_ = rebuild_dataset_list, list_names_list_str = rebuild_dataset_list_names)
+} else if (stage != 1) 
+{
+  rebuild_dataset_list_second_stage <- list(input_EnsemblGeneId, input_EnsemblTranscriptId, input_EntrezGeneId, input_RefSeqMRNA, input_accession, input_bad_gene_symbol, input_gene_symbol)
+  rebuild_dataset_list_names_second_stage <- list('input_EnsemblGeneId', 'input_EnsemblTranscriptId', 'input_EntrezGeneId', 'input_RefSeqMRNA', 'input_accession', 'input_bad_gene_symbol', 'input_gene_symbol')
+  
+  rebuild_dataset <- rlist::list.rbind(rebuild_dataset_list_second_stage)
+  
+  write_inputs(lists_ = rebuild_dataset_list_second_stage, list_names_list_str = rebuild_dataset_list_names_second_stage, dir_name_str = opts_input_folder_name)
+}
 
 rm(list = ls(pattern = 'left_to(.*)|inputAnalysis_(.*)|pattern_for(.*)|Papers_to(.*)|rebuild_dataset_list(.*)'))
 ########################################
 ####### CHECK AND WRITE ALL DATA #######
 ########################################
-
-
-# analysis workflows:
-# input_ProbeID - by paper identifier
-# input_Gemma - gemma annotation -> ncbi annotation -> 'entrezgene_id'
-# input_EnsemblGeneId - 'ensembl_gene_id'
-# input_EnsemblTranscriptId - 'ensembl_transcript_id'
-# input_EntrezGeneId - 'entrezgene_id'
-# input_RefSeqMRNA - 'refseq_mrna'; check the .1 notation at the end of identifiers
-# input_mgi_symbol - 'mgi_symbol'
-# input_accession - 'embl'
-# input_RGD_GM_RNA_7SK - ncbi annotation -> 'entrezgene_id'
-# input_bad_gene_symbol - manual
-# input_leftover_gene_symbol - ncbi annotation -> 'entrezgene_id'
-
-
-
-
-
-
-
-
-
-parse(text = 'input_7SK')
-
-eval(parse(text = 'input_7SK'))
-
-ls(pattern = '^input_.*')
-
-test2 <- lapply(X = ls(pattern = '^input_.*'), FUN = function(x){eval(parse(text = x))})
-
-# INPUT: regex describing which objects to take and include in the list
-list_env_objects <- function(regex_)
-{
-  print(environment())
-  
-  print(environment(.GlobalEnv))
-  print(environment())
-  list_output <-
-    lapply(
-      X = ls(pattern = regex_),
-      FUN = function(x) {
-        eval(parse(text = x), envir = globalenv())
-      }
-    )
-  return(list_output)
-}
-
-test3 <- list_env_objects(regex_ = '^input_.*')
-
-print(globalenv())
-environment()
-.GlobalEnv
-globalenv()
-ls(pattern = '^input_.*')
-
-test <- eval(parse(text = 'input_7SK'))
-### !!! How to create this object by ls() query and pass a list of objects returned by enviroment query into the function
-
-
-write_lists(list_LIST_DATA = list(input_ProbeID, input_Gemma, input_EnsemblGeneId, input_EnsemblTranscriptId, input_EntrezGeneId, input_EntrezGeneID_LOC, input_RefSeqMRNA, input_RefSeqMRNA_corrupted, input_mgi_symbol, input_mgi_symbol_corrupted, input_accession, input_rgd, input_gm, input_RNA, input_7SK, input_bad_gene_symbol, left_to_do_16), str_experiment_name = 'setting_input')
-
-
-
-eval(parse(text = ls(pattern = '^(input\\_)(.*)')))
-test_files <- as.list(parse(text = ls(pattern = '^(input\\_)(.*)')))
-
-
-
-check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'raw_dataset', df_original = raw_dataset, list_df_splited = chuj)
-  
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-####### TRASH ####### 
-# inputAnalysis_list_of_input_files_names <- c('data_v4_ensembl_gene_id.tsv', 'data_v4_ensembl_transcript_id.tsv', 'data_v4_entrezgene_id.tsv', 'data_v4_gemma.tsv', 'data_v4_manual.tsv', 'data_v4_names.tsv', 'data_v4_other_ids.tsv', 'data_v4_Probe_ID.tsv', 'data_v4_refseq_mrna_predicted.tsv', 'data_v4_refseq_mrna.tsv', 'data_v4_trash.tsv')
-# 
-# inputAnalysis_list_of_input_files <- list()
-# inputAnalysis_list_of_input_files <-
-#   lapply(
-#     X = inputAnalysis_list_of_input_files_names,
-#     FUN = function(x) {
-#       temp <- read_preformated_data(str_filename = x)
-#       
-#     }
-#   )
-# 
-# names(inputAnalysis_list_of_input_files) <- inputAnalysis_list_of_input_files_names
-# 
-# inputAnalysis_df_of_input_files <- rlist:: list.rbind(inputAnalysis_list_of_input_files)
-# 
-# inputAnalysis_lenght_of_wholeDataset_vs_inputFiles <- length(raw_dataset[[1]]) - length(inputAnalysis_df_of_input_files[[1]])
-# ####### CHECK IF INPUT DATA IS GOOD. This is not needed. We will be using NEW IMPROVED DATASET ####### setwd('/media/adrians/USB DISK1/Projekty/GRS - GJt Review Stress/FULL_DATASET')
-source('functions_for_genename_conversions.R')
-source('https://raw.githubusercontent.com/AdrianS85/helper_R_functions/master/little_helpers.R')
-rm(list = ls(pattern = '(.*)(temp)|(test)(.*)'))
-
-
-
-####### PREPARING NEW, IMPROVED DATASET ####### 
-raw_dataset <- read_preformated_data(str_filename = 'data_whole.tsv', col_types_ = 'nccccccccccccc', int_numbers_are_from = 11, int_numbers_are_to = 13) # In original file 'data_whole.tsv': 1) there are 261697 including the header; 2) there are 261475 values in first column (Paper). This is because some rows are empty (separator rows between experiments/papers). In raw_dataset there are 261696 rows.
-
-# After removing empty rows, which are defined as rows, that have no value in 'Paper' column, we are left with 261475 value-rich rows. This is in agreement with 'data_whole.tsv' file
-raw_dataset <- subset(x = raw_dataset, subset = !is.na(raw_dataset$Paper))
-
-# Prepare two columns which will include unique identfiers for given row. We need a column including all input for the entry (except entry_number, which will be mistaken for Gene_ID) for easy query of given identifer type in entire entry - column 'everything'
-raw_dataset$Entry_number <- rownames(raw_dataset)
-raw_dataset$everything <- as.character(apply(X = raw_dataset, MARGIN = 1, FUN = function(x) { paste( c(x[1:9], x[11:14]), collapse = '__')  } ))
-
-# Count entries in raw data. These lengths were checked by GJt and are in agreement with his raw data. Thus I conclude that it is very likely that raw_dataset is good input for further analysis
-inputAnalysis_lengths_of_experiments_in_raw_dataset <- split_and_measure_length(df_ = raw_dataset, split_by_str = 'Experiment')
-
-
-
-# Subset papers to be analyzed via actual microarray Probe_ID
-Papers_to_analyze_via_ProbeID <- readr::read_tsv('input_Probe_ID.tsv')$Papers_to_analyze_via_ProbeID
-
-inputAnalysis_include_in_ProbeID <- raw_dataset$Paper %in% Papers_to_analyze_via_ProbeID
-
-input_ProbeID <- subset(x = raw_dataset, subset = inputAnalysis_include_in_ProbeID)
-
-left_to_do <- subset(x = raw_dataset, subset = !inputAnalysis_include_in_ProbeID)
-
-inputAnalysis_was_spliting_good_1 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_ProbeID', df_original = raw_dataset, list_df_splited = list(input_ProbeID, left_to_do))
-
-rm(inputAnalysis_include_in_ProbeID)
-
-
-
-# Subset papers to be analyzed via Gemma Microarray
-Papers_to_analyze_via_Gemma <- readr::read_tsv('data_v4_gemma_platforms.tsv')$Paper_ID
-
-inputAnalysis_include_in_Gemma <- left_to_do$Paper %in% Papers_to_analyze_via_Gemma
-
-input_Gemma <- subset(x = left_to_do, subset = inputAnalysis_include_in_Gemma)
-
-left_to_do_2 <- subset(x = left_to_do, subset = !inputAnalysis_include_in_Gemma)
-
-inputAnalysis_was_spliting_good_2 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_Gemma', df_original = left_to_do, list_df_splited = list(input_Gemma, left_to_do_2))
-
-rm(inputAnalysis_include_in_Gemma)
-
-
-
-# This detects all entries in ensembl_gene_id from data_v4, Ive checked. Yet, the lenght of this input is much lower than of data_v4_ensembl_gene_id.tsv?
-inputAnalysis_include_in_EnsemblGeneID <-
-  stringr::str_detect(string = left_to_do_2$everything, pattern = '(ENS)(.*)G0(.*)')
-
-input_EnsemblGeneId <- subset(x = left_to_do_2, subset = inputAnalysis_include_in_EnsemblGeneID)
-
-left_to_do_3 <- subset(x = left_to_do_2, subset = !inputAnalysis_include_in_EnsemblGeneID)
-
-inputAnalysis_was_spliting_good_3 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_EnsemblGeneId', df_original = left_to_do_2, list_df_splited = list(input_EnsemblGeneId, left_to_do_3))
-
-rm(inputAnalysis_include_in_EnsemblGeneID)
-
-
-
-# Subset entries to be analyzed via Ensembl Transcript
-inputAnalysis_include_in_EnsemblTranscriptID <-
-  stringr::str_detect(string = left_to_do_3$everything, pattern = '(ENS)(.*)(T0)(.*)')
-
-input_EnsemblTranscriptId <- subset(x = left_to_do_3, subset = inputAnalysis_include_in_EnsemblTranscriptID)
-
-left_to_do_4 <- subset(x = left_to_do_3, subset = !inputAnalysis_include_in_EnsemblTranscriptID)
-
-inputAnalysis_was_spliting_good_4 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_EnsemblTranscriptId', df_original = left_to_do_3, list_df_splited = list(input_EnsemblTranscriptId, left_to_do_4))
-
-rm(inputAnalysis_include_in_EnsemblTranscriptID)
-
-
-# Subset entries to be analyzed via Entrez Gene
-inputAnalysis_include_in_EntrezGeneID <- stringr::str_detect(string = left_to_do_4$Gene_ID, pattern = '[1-9](\\d*)')
-
-input_EntrezGeneId <- subset(x = left_to_do_4, subset = inputAnalysis_include_in_EntrezGeneID)
-
-left_to_do_5 <- subset(x = left_to_do_4, subset = !inputAnalysis_include_in_EntrezGeneID | is.na(inputAnalysis_include_in_EntrezGeneID))
-
-inputAnalysis_was_spliting_good_5 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_EntrezGeneId', df_original = left_to_do_4, list_df_splited = list(input_EntrezGeneId, left_to_do_5))
-
-rm(inputAnalysis_include_in_EntrezGeneID)
-
-
-
-# Subset entries to be analyzed via Entrez Gene from LOC numbers - LOC - genes of uncertain function. When a published symbol is not available, and orthologs have not yet been determined, Gene will provide a symbol that is constructed as 'LOC' + the GeneID. Therefore LOC is basically GeneID, and is thus unique
-inputAnalysis_include_in_EntrezGeneID_LOC <- stringr::str_detect(string = left_to_do_5$everything, pattern = '(LOC)')
-
-input_EntrezGeneID_LOC <- subset(x = left_to_do_5, subset = inputAnalysis_include_in_EntrezGeneID_LOC)
-
-left_to_do_6 <- subset(x = left_to_do_5, subset = !inputAnalysis_include_in_EntrezGeneID_LOC)
-
-inputAnalysis_was_spliting_good_6 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_EntrezGeneID_LOC', df_original = left_to_do_5, list_df_splited = list(input_EntrezGeneID_LOC, left_to_do_6))
-
-rm(inputAnalysis_include_in_EntrezGeneID_LOC)
-
-
-
-# Subset entries to be analyzed via RefSeqMRNA
-inputAnalysis_include_in_RefSeqMRNA <- stringr::str_detect(string = left_to_do_6$everything, pattern = '(NM_)(\\d*)')
-
-input_RefSeqMRNA <- subset(x = left_to_do_6, subset = inputAnalysis_include_in_RefSeqMRNA)
-
-left_to_do_7 <- subset(x = left_to_do_6, subset = !inputAnalysis_include_in_RefSeqMRNA)
-
-inputAnalysis_was_spliting_good_7 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_RefSeqMRNA', df_original = left_to_do_6, list_df_splited = list(input_RefSeqMRNA, left_to_do_7))
-
-rm(inputAnalysis_include_in_RefSeqMRNA)
-
-
-
-# Subset corrupted (no _ after NM) entries to be analyzed via RefSeqMRNA
-inputAnalysis_include_in_RefSeqMRNA_corrupted <- stringr::str_detect(string = left_to_do_7$everything, pattern = '(NM )(\\d*)')
-
-input_RefSeqMRNA_corrupted <- subset(x = left_to_do_7, subset = inputAnalysis_include_in_RefSeqMRNA_corrupted)
-
-left_to_do_8 <- subset(x = left_to_do_7, subset = !inputAnalysis_include_in_RefSeqMRNA_corrupted)
-
-inputAnalysis_was_spliting_good_8 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'RefSeqMRNA_corrupted', df_original = left_to_do_7, list_df_splited = list(input_RefSeqMRNA_corrupted, left_to_do_8))
-
-rm(inputAnalysis_include_in_RefSeqMRNA_corrupted)
-
-
-
-# Study leftover ids: Rik - MGI genes with no canonical name yet
-inputAnalysis_include_in_mgi_symbol <- stringr::str_detect(string = left_to_do_8$everything, pattern = '(\\d*)(Rik)')
-
-input_mgi_symbol <- subset(x = left_to_do_8, subset = inputAnalysis_include_in_mgi_symbol)
-
-left_to_do_9 <- subset(x = left_to_do_8, subset = !inputAnalysis_include_in_mgi_symbol)
-
-inputAnalysis_was_spliting_good_9 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_mgi_symbol', df_original = left_to_do_8, list_df_splited = list(input_mgi_symbol, left_to_do_9))
-
-rm(inputAnalysis_include_in_mgi_symbol)
-
-
-
-# Study leftover ids: Rik - MGI genes with no canonical name yet corrupted RIKs
-inputAnalysis_include_in_mgi_symbol_corrupted <- stringr::str_detect(string = left_to_do_9$everything, pattern = '(\\d*)(RIK)')
-
-input_mgi_symbol_corrupted <- subset(x = left_to_do_9, subset = inputAnalysis_include_in_mgi_symbol_corrupted)
-
-left_to_do_10 <- subset(x = left_to_do_9, subset = !inputAnalysis_include_in_mgi_symbol_corrupted)
-
-inputAnalysis_was_spliting_good_10 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_mgi_symbol_corrupted', df_original = left_to_do_9, list_df_splited = list(input_mgi_symbol_corrupted, left_to_do_10))
-
-rm(inputAnalysis_include_in_mgi_symbol_corrupted)
-
-
-
-# Study leftover ids: XM_ - most of these names are substituted by NM_ sequences, but NCBI search does not return this new NM_ gene. Stupid.
-
-# Study leftover ids: [letter][numbers] - a) ncbi accession nb. An accession number applies to the complete record and is usually a combination of a letter(s) and numbers, such as a single letter followed by five digits (e.g., U12345) or two letters followed by six digits (e.g., AF123456). Some accessions might be longer, depending on the type of sequence record. Accession numbers do not change, even if information in the record is changed at the author's request. Sometimes, however, an original accession number might become secondary to a newer accession number, if the authors make a new submission that combines previous sequences, or if for some reason a new submission supercedes an earlier record. These IDs are actually the same in ENA ('embl' or 'clone_based_ensembl_gene') and in ncbi nucleotide
-inputAnalysis_include_in_accession <- stringr::str_detect(string = left_to_do_10$everything, pattern = '__[A-Z]{1,2}\\d{5,}')
-
-input_accession <- subset(x = left_to_do_10, subset = inputAnalysis_include_in_accession)
-
-left_to_do_11 <- subset(x = left_to_do_10, subset = !inputAnalysis_include_in_accession)
-
-inputAnalysis_was_spliting_good_11 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_accession', df_original = left_to_do_10, list_df_splited = list(input_accession, left_to_do_11))
-
-rm(inputAnalysis_include_in_accession)
-
-
-
-# RGD - Rat Genome Database
-inputAnalysis_include_in_rgd <- stringr::str_detect(string = left_to_do_11$Gene_symbol, pattern = '(RGD)')
-
-input_rgd <- subset(x = left_to_do_11, subset = inputAnalysis_include_in_rgd)
-
-left_to_do_12 <- subset(x = left_to_do_11, subset = !inputAnalysis_include_in_rgd | is.na(inputAnalysis_include_in_rgd))
-
-inputAnalysis_was_spliting_good_12 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_rgd', df_original = left_to_do_11, list_df_splited = list(input_rgd, left_to_do_12))
-
-rm(inputAnalysis_include_in_rgd)
-
-
-
-# Gm - annotated genes that do not have a canonical name (yet)
-inputAnalysis_include_in_gm <- stringr::str_detect(string = left_to_do_12$Gene_symbol, pattern = '(Gm)')
-
-input_gm <- subset(x = left_to_do_12, subset = inputAnalysis_include_in_gm)
-
-left_to_do_13 <- subset(x = left_to_do_12, subset = !inputAnalysis_include_in_gm | is.na(inputAnalysis_include_in_gm))
-
-inputAnalysis_was_spliting_good_13 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_gm', df_original = left_to_do_12, list_df_splited = list(input_gm, left_to_do_13))
-
-rm(inputAnalysis_include_in_gm)
-
-
-
-# RNA
-inputAnalysis_include_in_RNA <- stringr::str_detect(string = left_to_do_13$Gene_symbol, pattern = '(RNA)')
-
-input_RNA <- subset(x = left_to_do_13, subset = inputAnalysis_include_in_RNA)
-
-left_to_do_14 <- subset(x = left_to_do_13, subset = !inputAnalysis_include_in_RNA | is.na(inputAnalysis_include_in_RNA))
-
-inputAnalysis_was_spliting_good_14 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_5S_', df_original = left_to_do_13, list_df_splited = list(input_RNA, left_to_do_14))
-
-rm(inputAnalysis_include_in_RNA)
-
-
-
-# 7SK
-inputAnalysis_include_in_7SK <- stringr::str_detect(string = left_to_do_14$Gene_symbol, pattern = '(7SK)')
-
-input_7SK <- subset(x = left_to_do_14, subset = inputAnalysis_include_in_7SK)
-
-left_to_do_15 <- subset(x = left_to_do_14, subset = !inputAnalysis_include_in_7SK | is.na(inputAnalysis_include_in_7SK))
-
-inputAnalysis_was_spliting_good_15 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_7SK', df_original = left_to_do_14, list_df_splited = list(input_7SK, left_to_do_15))
-
-rm(inputAnalysis_include_in_7SK)
-
-
-
-# Bad Gene_Symbol
-inputAnalysis_include_in_bad_gene_symbol <- left_to_do_15$Gene_symbol %in% c('–', 'N/A')
-
-input_bad_gene_symbol <- subset(x = left_to_do_15, subset = inputAnalysis_include_in_bad_gene_symbol | is.na(left_to_do_15$Gene_symbol))
-
-input_leftover_gene_symbol <- subset(x = left_to_do_15, subset = !inputAnalysis_include_in_bad_gene_symbol)
-input_leftover_gene_symbol <- subset(x = input_leftover_gene_symbol, subset = !is.na(input_leftover_gene_symbol$Gene_symbol))
-
-inputAnalysis_was_spliting_good_16 <- check_was_the_spliting_of_df_by_filtering_ok(str_what_was_splited = 'input_7SK', df_original = left_to_do_15, list_df_splited = list(input_bad_gene_symbol, input_leftover_gene_symbol))
-
-
-
-# Here I show that dataset composed of all the specified subsets is equal to raw_dataset
-rebuild_dataset <- list(input_ProbeID, input_Gemma, input_EnsemblGeneId, input_EnsemblTranscriptId, input_EntrezGeneId, input_EntrezGeneID_LOC, input_RefSeqMRNA, input_RefSeqMRNA_corrupted, input_mgi_symbol, input_mgi_symbol_corrupted, input_accession, input_rgd, input_gm, input_RNA, input_7SK, input_bad_gene_symbol, input_leftover_gene_symbol)
-
-rebuild_dataset <- rlist::list.rbind(rebuild_dataset)
-
-inputAnalysis_lengths_of_experiments_in_rebuild_dataset <- split_and_measure_length(df_ = rebuild_dataset, split_by_str = 'Experiment')
-
-inputAnalysis_lengths_of_experiments_in_rebuild_dataset == inputAnalysis_lengths_of_experiments_in_raw_dataset
