@@ -214,7 +214,36 @@ write.table(
   dec = '.'
 )
 
-# ~/cluster-1.57/src/cluster -f for_clustering.tsv -m a -g 2 #http://bonsai.hgc.jp/~mdehoon/software/cluster/command.txt 
+  # ~/cluster-1.57/src/cluster -f for_clustering.tsv -m a -g 2 #http://bonsai.hgc.jp/~mdehoon/software/cluster/command.txt 
+
+### Clustering subsets of data
+search_for = stringr::str_detect(string = tolower(descriptions$Brain_part), pattern = '.*cumbens*')
+
+brain_areas <- descriptions %>%
+  dplyr::select(Group_ID, Brain_part) %>%
+  dplyr::filter(search_for)
+
+temp_other <- descriptions %>%
+  dplyr::select(Group_ID, Brain_part) %>%
+  dplyr::filter(!search_for)
+
+filter_out_missing_exps <- sapply(X = brain_areas$Group_ID, function(x) {x %in% colnames(for_clustering)})
+experiments_to_include <- brain_areas$Group_ID[filter_out_missing_exps]
+
+subset_matrix <- for_clustering[, experiments_to_include]
+
+write.table(
+  x = as.data.frame(subset_matrix), 
+  file = 'for_clustering_hippocampus.tsv',
+  sep = '\t',
+  row.names = T,
+  col.names = NA,
+  dec = '.'
+)
+
+
+
+
 
 #### LOAD DATA #### 
 
