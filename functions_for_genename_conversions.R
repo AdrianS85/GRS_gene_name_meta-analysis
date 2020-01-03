@@ -1459,3 +1459,119 @@ get_subset_vector_for_entries_with_3_or_more_values_per_paper <- function(final_
   
   return(entries_with_3_or_more_values)
 }
+
+
+
+create_subset_of_exps_with_at_least_3_papers_wrapper <- function(final_good_dataset__ = final_good_dataset, experiments_to_include_ = experiments_to_include, save_as_chr)
+{
+  subset_matrix <-subset(final_good_dataset__, subset = final_good_dataset__$Experiment %in% experiments_to_include_)
+  
+  medianed_subset_matrix <- subset_matrix %>%
+    dplyr::group_by(Experiment, lower_final_gene_name) %>%
+    dplyr::summarize(logFC_median = median(logFC))
+  
+  spread_medianed_subset_matrix <- tidyr::spread(data = medianed_subset_matrix, key = Experiment, value = logFC_median)
+  
+  bool_entries_with_3_or_more_values_subset_matrix <- get_subset_vector_for_entries_with_3_or_more_values_per_paper(final_good_dataset_ = subset_matrix)
+  
+  at_least_in_3_papers_spread_med_sub_mat <- subset(x = spread_medianed_subset_matrix, subset = bool_entries_with_3_or_more_values_subset_matrix)
+  
+  # save(at_least_in_3_papers_spread_med_sub_mat, file = save_as_chr)
+  
+  return(at_least_in_3_papers_spread_med_sub_mat)
+}
+
+
+
+# OUTPUT: df
+get_number_and_percentage_of_directionality_of_exp_first_column_names <- function(spread_dataset_){
+  
+  if (!is.character(spread_dataset_[[1]])) {
+    stop('First column needs to include gene names')
+  }
+  
+  no_of_exps <- purrrlyr::by_row(.d = spread_dataset_[,-1], .collate = "rows", ..f = function(x) {sum(x != 0)})$.out
+  
+  temp_2 <- purrrlyr::by_row(.d = spread_dataset_[,-1], .collate = "rows", ..f = function(x) {sum(x > 0)})$.out
+  
+  perc_of_upregulated <- temp_2/no_of_exps
+  
+  spread_dataset_ <- cbind(spread_dataset_[1], no_of_exps, perc_of_upregulated)
+  
+  return(spread_dataset_)
+}
+
+
+
+get_number_and_percentage_of_directionality_of_paper_first_column_names <- function(spread_data_)
+{
+  spread_data_[spread_data_ == 0] <- NA
+  
+  temp_ <- tidyr::gather(data = spread_data_, key = "exp", value = "logFC", na.rm = T, -lower_final_gene_name)
+  temp_ <- temp_[,-3]
+  
+  temp_$paper <- stringr::str_remove(string = temp_$exp, pattern = '_.*')
+  temp_$exp <- NULL
+  
+  temp_ <- temp_ %>%
+    unique() %>%
+    dplyr::select(lower_final_gene_name) %>%
+    dplyr::group_by(lower_final_gene_name) %>%
+    dplyr::summarise(number = dplyr::n())
+  
+  return(temp_)
+}
+
+
+
+# OUTPUT: [[1]] - actual prepared vector, [[2]] - dataframe for validation
+cleanup_differing_units <- function(charvec_, unit_identifier_regexList, unit_multiplier_list)
+{
+  temp <- data.frame(charvec_)
+  
+  temp$order <- c(1:length(charvec_))
+  
+  temp$number <- stringr::str_extract(string = temp$charvec_, pattern = '[0-9]{1,}')
+  
+  temp$number <- sapply(X = temp$number, FUN = function(x) {paste0(x, collapse = '') } )
+  
+  for (unit_nb in seq_along(unit_identifier_regexList)) {
+    temp2 <- subset(x = temp , subset = stringr::str_detect(string = charvec_, pattern = unit_identifier_regexList[[unit_nb]]))
+    
+    temp2$temp <- as.numeric(temp2$number) * unit_multiplier_list[[unit_nb]]
+    
+    if (unit_nb == 1) {
+      ret_urn <- temp2
+    } else if (unit_nb > 1) {
+      ret_urn <- rbind(ret_urn, temp2)
+    }
+  }
+  
+  ret_urn <- merge(temp, ret_urn, by = 'order', all.x = T)
+  
+  if(length(charvec_) != length(ret_urn[[1]])){
+    stop('Output differs from input. Probably You have an entry which matches to two or more of the unit_identifier_regexList')
+  }
+  
+  ret_urn <- dplyr::select(.data = ret_urn, order, charvec_.x, temp)
+  
+  ret_urn <- ret_urn[order(ret_urn$order),]
+  
+  return(list(ret_urn$temp, ret_urn))
+}
+
+
+
+brain_part_cleanup_wrapper <- function(brain_parts_ = descriptions$Brain_part)
+{
+  brain_parts_ <- tolower(brain_parts_)
+  brain_parts_[brain_parts_ == 'ventral tegmental areas'] <- 'ventral tegmental area'
+  brain_parts_[brain_parts_ == 'hypothalamic paraventricular\nnucleus'] <- 'hypothalamic paraventricular nucleus'
+  brain_parts_[brain_parts_ == 'paraventricular nucleus of the hypothalamus'] <- 'hypothalamic paraventricular nucleus'
+  brain_parts_ <- stringr::str_replace_all(string = brain_parts_, pattern = '.*myg.*', replacement = 'amygdala')
+  brain_parts_ <- stringr::str_replace_all(string = brain_parts_, pattern = '.*hipp.*', replacement = 'hippocampus')
+  brain_parts_ <- stringr::str_replace_all(string = brain_parts_, pattern = '.*cumbens.*', replacement = 'nucleus_accumbens')
+  
+  return(brain_parts_)
+  
+}
