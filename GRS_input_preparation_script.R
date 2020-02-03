@@ -282,7 +282,7 @@ input_RefSeqMRNA$Probe_ID <- stringr::str_remove_all(string = input_RefSeqMRNA$P
 ###################################################
 # Study leftover ids: XM_ - most of these names are substituted by NM_ sequences, but NCBI search does not return this new NM_ gene. Stupid.
 # Study leftover ids: [letter][numbers] - a) ncbi accession nb. An accession number applies to the complete record and is usually a combination of a letter(s) and numbers, such as a single letter followed by five digits (e.g., U12345) or two letters followed by six digits (e.g., AF123456). Some accessions might be longer, depending on the type of sequence record. Accession numbers do not change, even if information in the record is changed at the author's request. Sometimes, however, an original accession number might become secondary to a newer accession number, if the authors make a new submission that combines previous sequences, or if for some reason a new submission supercedes an earlier record. These IDs are actually the same in ENA ('embl' or 'clone_based_ensembl_gene') and in ncbi nucleotide
-temp <- prepare_input(regex_ = '(?<![A-Za-z]{1})[A-Z]{1,2}\\d{5,}(?=(_|,))', df_ = left_to_do_, regex_two_for_extracting_identifiers_from_string = '(__.*)|(,.*)')
+temp <- prepare_input(regex_ = '(?<![A-Za-z]{1})[A-Z]{1,2}\\d{5,}(?=(_|,|\\.))', df_ = left_to_do_, regex_two_for_extracting_identifiers_from_string = '(__.*)|(,.*)')
 # temp <- prepare_input(regex_ = '(?<![A-Za-z]{1})[A-Z]{1,2}\\d{5,}', df_ = left_to_do_, regex_two_for_extracting_identifiers_from_string = '(__.*)|(,.*)')
 
 input_accession <- temp[[1]] 
