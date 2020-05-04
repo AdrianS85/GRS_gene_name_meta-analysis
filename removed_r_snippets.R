@@ -727,3 +727,234 @@ functions_for_genename_conversions.R
 #   return(temp_df)
 # }
 
+# correlations_gender <- anova_on_nested_df(df_ = correlations_, value_col_name = 'logFC', trait_col_name = 'Gender_clean', main_test = 'anova', post_hoc = 'tukeyhsd') #4021 vs 2000 vs 1991
+# 
+# correlations_species <- anova_on_nested_df(df_ = correlations_, value_col_name = 'logFC', trait_col_name = 'Species', main_test = 'anova', post_hoc = 'tukeyhsd') #568 vs 240 vs 230
+# 
+# correlations_stress_sens <- anova_on_nested_df(df_ = correlations_, value_col_name = 'logFC', trait_col_name = 'Stress_sensitivity_clean', main_test = 'anova', post_hoc = 'tukeyhsd') # 34 vs 0 
+# 
+# correlations_stress <- anova_on_nested_df(df_ = correlations_, value_col_name = 'logFC', trait_col_name = 'Stress_clean') # 4091 vs 2687
+# 
+# correlations_brain_part <- anova_on_nested_df(df_ = correlations_, value_col_name = 'logFC', trait_col_name = 'Brain_part_clean') #16213 vs 15183
+# correlations_gender <- correlations_[1:100,]
+# 
+# correlations_gender$k_w_pval <- as.numeric(purrr::map(.x = correlations_gender$data, ~ { broom::tidy(kruskal.test(logFC ~ Gender_clean, data = .x))$p.value[[1]] }))
+# 
+# correlations_gender$k_w_should_i_post <- ifelse(test = correlations_gender$k_w_pval < 0.05, T, F)
+# 
+# correlations_gender <- subset(x = correlations_gender, subset = correlations_gender$k_w_should_i_post == T) %>%
+#   dplyr::select(-k_w_should_i_post)
+# 
+# correlations_gender$conover <-
+#   purrr::map(.x = correlations_gender$data, ~ {
+#     tryCatch(
+#       {conover.test::conover.test(
+#         x = .x$logFC,
+#         g = .x$Gender_clean,
+#         method = 'bh'
+#       ) },
+#       error = function(c){return(NA)})})
+# correlations_$stress_cor <- as.numeric(purrr::map(.x = correlations_$data, .f = function(x){ cor(x = x$logFC, y = as.integer(x$Stress_clean), use = "pairwise.complete.obs")  }))
+# correlations_$brain_part_cor <- as.numeric(purrr::map(.x = correlations_$data, .f = function(x){ cor(x = x$logFC, y = as.integer(x$Brain_part_clean), use = "pairwise.complete.obs")  }))
+# 
+# correlations_$species_cor <- as.numeric(purrr::map(.x = correlations_$data, .f = function(x){ cor(x = x$logFC, y = as.integer(x$Species), use = "pairwise.complete.obs")  }))
+# 
+# correlations_$stress_sens_Pear_cor_pw_cm_obs <- as.numeric(purrr::map(.x = correlations_$data, .f = function(x){ cor(x = x$logFC, y = as.integer(x$Stress_sensitivity_clean), use = "pairwise.complete.obs")  }))
+# correlations_$stress_sens_Spear_cor <- as.numeric(purrr::map(.x = correlations_$data, .f = function(x){ cor(x = x$logFC, y = as.integer(x$Stress_sensitivity_clean), method = "spearman")  }))
+
+# correlations_$gender_Pear_cor_pw_cm_obs <- as.numeric(purrr::map(.x = correlations_$data, .f = function(x){ cor(x = x$logFC, y = as.integer(x$Gender_clean), use = "pairwise.complete.obs")  }))
+# correlations_$gender_Spear_cor <- as.numeric(purrr::map(.x = correlations_$data, .f = function(x){ cor(x = x$logFC, y = as.integer(x$Gender_clean), method = "spearman")  }))
+# t-test/non-parametric/normality
+# 
+# test_1 <- purrr::map(.x = correlations_$data, ~ { broom::tidy(aov(logFC ~ Gender_clean, data = .x))$p.value[1] })
+
+
+
+
+### GETING CORRELATIONS ###
+
+
+
+# temp <- subset(exp_number_and_percentage_, exp_number_and_percentage_$no_of_exps == 0)
+# temp_outer_join <- dplyr::anti_join(x = exp_number_and_percentage_, y = paper_number_, "lower_final_gene_name")
+# 
+# temp_final_dataset <- subset(x = final_good_dataset_1_and_2, subset = final_good_dataset_1_and_2$lower_final_gene_name %in% temp_outer_join$lower_final_gene_name)
+# 
+# readr::write_tsv(x = temp_outer_join, path = 'genes_present_only_in_experiments.tsv')
+# readr::write_tsv(x = temp_final_dataset, path = 'genes_present_only_in_experiments_dataset_used_as_input_for_data_analysis.tsv')
+#     
+# 
+# length(paper_number_[[1]]) + length(temp_outer_join[[1]]) == length(exp_number_and_percentage_[[1]])
+# 
+# 
+# temp_final_dataset <- subset(x = final_good_dataset_1_and_2, subset = final_good_dataset_1_and_2$Paper == 45)
+
+
+
+
+# ### This will be our input data for further analysis. It contains only significant columns of "Paper", "GroupID", "ensembl_gene_name", "logFC": 
+# SHORT_SINGLE_TEST_ANNOTATION <- SINGLE_TEST_ANNOTATION %>%
+#   select("Paper", "GroupID", "ensembl_gene_name", "logFC") %>%
+#   group_by(Paper, GroupID, ensembl_gene_name) %>%
+#   nest()
+# 
+# # I dont know why purrr::map didnt work for this. Either way, we just lapply this. Here we write UP or DOWN for every logFC for given genename in given experiment (not paper)
+# SHORT_SINGLE_TEST_ANNOTATION$directionality <- lapply(X = SHORT_SINGLE_TEST_ANNOTATION$data, FUN = function(x) { mutate(x, Symbol_direction = ifelse(logFC > 0, "UP", "DOWN")) } ) 
+# 
+# # Here we count how many UPs and DOWNs are in every given genename in given experiment (not paper)
+# SHORT_SINGLE_TEST_ANNOTATION$directionality <- lapply(X = SHORT_SINGLE_TEST_ANNOTATION$directionality, FUN = function (x) {table(select(x, "Symbol_direction"))} ) 
+# 
+# # Here we establish actual status of gene in given experiment
+# SHORT_SINGLE_TEST_ANNOTATION$sum_directionality <- as.character(lapply(X = SHORT_SINGLE_TEST_ANNOTATION$directionality, 
+#                                                                        FUN = function(x) {
+#                                                                          if (length(x) == 1 && grepl(pattern = "UP", names(x))) { "UP" }
+#                                                                          else if (length(x) == 1 && grepl(pattern = "DOWN", names(x))) { "DOWN" }
+#                                                                          else if (length(x) == 2 && grepl(pattern = "DOWN", names(x)) && grepl(pattern = "DOWN", names(x))) { "MIXED" }
+#                                                                          else { "ERROR" }
+#                                                                        }))
+# 
+# # Here we remove MIXED expression and multiple genenames
+# FILT_SHORT_SINGLE_TEST_ANNOTATION <- SHORT_SINGLE_TEST_ANNOTATION %>%
+#   #filter(!grepl(pattern = "(.*);(.*)", SHORT_SINGLE_TEST_ANNOTATION$ensembl_gene_name)) %>%
+#   filter(!sum_directionality == "MIXED") %>%
+#   filter(!sum_directionality == "ERROR") %>%
+#   filter(!is.na(ensembl_gene_name))
+# 
+# # Here we add mean to each !!! Perhaps this should be final input, because it has: 1) removed genes giving UP+DOWN in the same experiment, 2) removed NAs
+# STDINPUT_FILT_SHORT_SIN_T_ANNO <- FILT_SHORT_SINGLE_TEST_ANNOTATION %>%
+#   mutate(mean = as.numeric(map(data, function(x) { as.numeric(mean(x[[1]]))} ))) %>% ## This way we give actuall vector to function, not a data table(tibble)
+#   select("Paper", "GroupID", "ensembl_gene_name", "sum_directionality", "mean") 
+# ### !!! THE IDEA IS THAT THE "STDINPUT_FILT_SHORT_SIN_T_ANNO" IS THE INPUT FOR ALL FURTHER INQUIRIES !!! ###
+# 
+# # tO raczej nie wyjdzie - nie da siÄ™ wyciÄ…gnÄ…Ä‡ wĹ‚aĹ›ciwej wartoĹ›ci ekspresji z dwĂłch rĂłznych eksperymentĂłw w tym samym paper. MoĹĽe lepiej po prostu dowiedzieÄ‡ siÄ™, ktĂłre geny sÄ… unikatowe dla danego paper i usunÄ…Ä‡ te geny z normalnie uĹĽywanego wczeĹ›niej test annotation pliku. 
+# 
+# 
+# 
+# 
+# #######################################
+# ####### PREPARE FINALIZED TABLE ####### 
+# #######################################
+# 
+# check_was_the_spliting_of_df_by_filtering_ok(df_original = raw_dataset, list_df_splited = list(finalized, leftovers_for_checking_data_integrity))
+# 
+# length(finalized[[1]]) + length(leftovers_for_checking_data_integrity[[1]])
+
+
+
+
+##############################################################
+##############################################################
+##############################################################
+
+
+
+
+
+
+
+# ###### WHOLE DATASET ANALYSIS ######
+# 
+# # Tutaj liczymy ile razy geny wystepuja w oryginalnym dataset (w eksperymentach, nie w paperach)
+# HOW_MANY_TIMES_EXP_STDINPUT <- STDINPUT_FILT_SHORT_SIN_T_ANNO %>%
+#   select(ensembl_gene_name) %>%
+#   group_by(ensembl_gene_name) %>%
+#   summarise(number = n())
+# 
+# # Tutaj liczymy ile razy geny wystepuja w oryginalnym dataset (w paperach)
+# HOW_MANY_TIMES_PAPER_STDINPUT <- STDINPUT_FILT_SHORT_SIN_T_ANNO %>%
+#   select(Paper, ensembl_gene_name) %>%
+#   unique() %>%
+#   select(ensembl_gene_name) %>%
+#   group_by(ensembl_gene_name) %>%
+#   summarise(number = n())
+# 
+# ###### Tutaj robimy specjalny input do klastrowania, w ktĂłrym uĹĽywamy tylko genĂłw, ktĂłre zostaĹ‚y wykryte przynajmniej w 3 oddzielnych paperach ###### 
+# UP3_HOW_MANY_TIMES_PAPER_STDINPUT <- HOW_MANY_TIMES_PAPER_STDINPUT %>%
+#   filter(number >= 3)
+# 
+# UP3_PAPER_CLUSTERING_INPUT <- merge(STDINPUT_FILT_SHORT_SIN_T_ANNO, UP3_HOW_MANY_TIMES_PAPER_STDINPUT, by = "ensembl_gene_name", all.y = T)
+# 
+# FOR_CLUST_UP3_PAPER_CLUSTERING_INPUT <- UP3_PAPER_CLUSTERING_INPUT %>%
+#   FOR_CLUS()
+# #readr::write_tsv(x = FOR_CLUST_UP3_PAPER_CLUSTERING_INPUT, path = "FOR_CLUST_UP3_PAPER_CLUSTERING_INPUT.tsv")  
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# ###### Tutaj robimy specjalny input do klastrowania, w ktĂłrym uĹĽywamy tylko genĂłw, ktĂłre zostaĹ‚y wykryte przynajmniej w 3 oddzielnych paperach ###### 
+# 
+# 
+# # Tutaj liczymy ile razy geny wyst?puj? w oryginalnym dataset, patrz?c czy s? up czy down
+# UorDWHOLE_NO_UNIDS_ORG_DATA <- NO_UNIDS_ORG_DATA %>%
+#   select(Gene_symbol, logFC) %>%
+#   mutate(Symbol_direction = ifelse(logFC > 0, "UP", "DOWN")) %>%
+#   mutate(Symbol_direction = paste(Gene_symbol, Symbol_direction, sep = "_")) %>%
+#   group_by(Symbol_direction) %>%
+#   summarise(number = n()) %>% 
+#   mutate(Gene_symbol2 = str_remove(Symbol_direction, "_.*"))
+# 
+# ###### WHOLE DATASET ANALYSIS ######
+# 
+# 
+# 
+# ###### COMPARISONS-CENTERED ANALYSIS ######
+# 
+# 
+# 
+# ### Here we set whether we want to analyze papers or comparisons
+# P_or_C = quo(Paper) #" GroupID OR Paper "
+# 
+# 
+# 
+# # Tutaj liczymy ile razy geny wyst?puj? W KA?DYM Z POR?WNA?, nie patrz?c czy s? up czy down
+# COMP_NO_UNIDS_ORG_DATA <- NO_UNIDS_ORG_DATA %>%
+#   select(!!P_or_C, Gene_symbol) %>%
+#   group_by(!!P_or_C, Gene_symbol) %>%
+#   summarise(number = n())
+# 
+# 
+# 
+# # Tutaj liczymy ile razy geny wyst?puj? W KA?DYM Z POR?WNA?, patrz?c czy s? up czy down    
+# UorDCOMP_NO_UNIDS_ORG_DATA <- NO_UNIDS_ORG_DATA %>%
+#   select(!!P_or_C, Gene_symbol, logFC) %>%
+#   mutate(Symbol_direction = ifelse(logFC > 0, "UP", "DOWN")) %>%
+#   mutate(Symbol_direction = paste(Gene_symbol, Symbol_direction, sep = "_")) %>%
+#   group_by(!!P_or_C, Symbol_direction) %>%
+#   summarise(Sym_dir_number = n()) %>%
+#   mutate(Gene_symbol2 = str_remove(Symbol_direction, "_.*"))
+# 
+# 
+# 
+# #Divide data into genes expressed in single direction in given comparison, vs genes expressed in different direction (bad genes)
+# nonUNIQ_UorDCOMP_NO_UNIDS_ORG_DATA <- UorDCOMP_NO_UNIDS_ORG_DATA %>%
+#   group_by(!!P_or_C) %>%
+#   filter(duplicated(Gene_symbol2, fromLast = T) | duplicated(Gene_symbol2))
+# 
+# UNIQ_UorDCOMP_NO_UNIDS_ORG_DATA <- UorDCOMP_NO_UNIDS_ORG_DATA %>%
+#   group_by(!!P_or_C) %>%
+#   filter(!duplicated(Gene_symbol2, fromLast = T) & !duplicated(Gene_symbol2))
+# 
+# 
+# 
+# # Check if unique/duplicated division went well           
+# if (nrow(UorDCOMP_NO_UNIDS_ORG_DATA) - (nrow(nonUNIQ_UorDCOMP_NO_UNIDS_ORG_DATA) + nrow(UNIQ_UorDCOMP_NO_UNIDS_ORG_DATA)) != 0){ 
+#   stop("Hey, fwend! You have some wierd values in Your counted data, buddy! Better check whats happening, or Your results will smell of moose scrotum!")
+# }
+# 
+# 
+# 
+# # Here we make a table only with genes that were replicated in few comparisons
+# REPL_UNIQ_UorDCOMP_NO_UNIDS_ORG_DATA <- UNIQ_UorDCOMP_NO_UNIDS_ORG_DATA %>%
+#   filter(Sym_dir_number >= 3)
+# 
+# 
+# #Annotate base on Paper OR GroupID
+# ANNO_REPL_UNIQ_UorDCOMP_NO_UNIDS_ORG_DATA <- merge(REPL_UNIQ_UorDCOMP_NO_UNIDS_ORG_DATA, COMPARISONS, by = "Paper")
+# 
+# 
+# ###### COMPARISONS-CENTERED ANALYSIS ######

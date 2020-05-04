@@ -1,9 +1,27 @@
 source('functions_for_genename_conversions.R')
 source('https://raw.githubusercontent.com/AdrianS85/helper_R_functions/master/little_helpers.R')
 # rm(list = ls(pattern = 'temp.*|test.*'))
-load('final_good_dataset_1_and_2') 
+load('final_good_dataset_1_and_2') #No genes for experiments 32_1, 32_2, 61_1, 61_2!!
 load('reformated_raw_dataset_1_and_2')
-load('descriptions_1_and_2')
+load('descriptions_1_and_2') #Includes descriptions for experiments 32_1, 32_2, 61_1. Also, later columns from experiments from second batch are moved one column to the right. This means that 1 resilient and 1 vulnerable group are not included in the analysis. Ive repaired this, but the stress/sensitivity analysis that I made before are obsolete, I removed them and did not made them back
+
+####### SET NAMES OF CLUSTERS OF INTEREST ####### 
+groups_of_genes <- list('hemoglobin_cluster' = c('alas2', 'hbb-bt', 'hba-a1', 'hbb-bs', 'hba-a2', 'ch25h', 'lcn2', 'lrg1', 's100a8', 's100a9'), 
+                        'choroid_cluster' = c('cldn1',	'epn3',	'msx1',	'col8a2',	'lbp',	'ace',	'clic6',	'mfrp',	'krt8',	'drc7',	'ecrg4',	'prr32',	'aqp1',	'col8a1',	'steap1',	'f5',	'enpp2',	'trpv4',	'otx2',	'folr1',	'cldn2',	'kcne2',	'tmem72',	'slc4a5',	'kl',	'sostdc1',	'ttr',	'col9a3',	'slc39a4',	'sema3b',	'prlr',	'cox8b',	'oca2',	'slc2a12',	'igf2',	'igfbp2',	'slc13a4',	'pcolce',	'wdr86'), 
+                        'early_genes_cluster' = c('cdkn1a',	'dusp1',	'egr1',	'egr2',	'fosb',	'fos',	'arc',	'irs2',	'junb',	'midn',	'b4galt1',	'fam107a',	'coq10b',	'gch1',	'csrnp1',	'per1',	'sgk1',	'ddit4',	'tsc22d3',	'pnpla2'), 
+                        'additional_1' = c('col1a1', 'lyz2', 'cytl1', 'alx4', 'efemp1', 'col9a2', 'car13', 'h2-q1', 'wnt16', 'bmp4', 'aebp1', 'aldh1a2', 'fam180a', 'slc6a13', 'ptgds', 'slc22a6', 'slc13a3', 'fgfbp1', 'h2-aa', 'mpzl2', 'fmod', 'mrgprf', 'cdh1', 'prdm6', 'itih2', 'asgr1', 'wnt6', 'slc22a2', 'crabp2', 'slc47a1', 'slc6a12', 'mgp'), 
+                        'additional_2' = c('cd4', 'drd2', 'gpr88', 'gm14703', 'gm15852', 'xlr3b', 'hist1h2af', 'i830134h01rik', 'mt-nd3', 'smco3'), 
+                        'additional_4' = c('btg2', 'ier2', 'atf3', 'apold1', 'ccn1', 'gimap6', 'tagap', 'tmem252', 'lrrc32'), 
+                        'additional_5' = c('atp5l', 'fbl', 'h2afz', 'a530032d15rik', 'gapdh', 'rps13', 'gm6180', 'fau', 'mrpl23', 'btg3', 'rpl23a', 'rpl17', 'rps23', 'rps27', 'ppia', 'rpl28', 'sec61g', 'rpl27', 'lsm7', 'pin4', 'rpl9', 'prl8a1', 'rps16', 'hnrnpa3', 'gm14401', 'rpl10a', 'rpl27a', 'rpl31', 'rpl5', 'rps27a', 'rps12', 'olfr613', 'sp140', 'rpl11', 'rpl37', 'rpl38'),
+                        '88_best' = c('ddit4','errfi1','klf9','bcl6','fkbp5','mt2','mt2a','nfkbia','pdk4','adcy9','cxxc5','dusp1','eva1a','litaf','nedd9','rhob','sgk1','sult1a1','tiparp','aldoc','arhgef3','arl4d','bcl6b','cables1','calm2','ccnd1','cdkn1a','cdo1','chst1','cyp7b1','ehd3','fzd1','gab1','gap43','gjb6','hepacam','id1','il6r','il6ra','irf1','jun','klf15','lhfp','lyve1','mertk','mgst1','mical2','myh2','ndrg2','npy1r','nr3c1','nudt9','osbpl3','pim3','plscr1','prr5','rasl11b','rdx','rhou','sall2','scamp2','sdc4','sesn1','slc25a33','sox2','sox4','sox9','spsb1','svil','tgfbr1','thra','tle4','tmem109','tob2','tsc22d3','vps37b','wipf3','wnt16','wnt7a','gpd1','ctgf','plekhf','dgkz','mtmr2','zfp36l1','azin1','cklf','ppp5c','sema6d','tle3'),
+                        'ribosomal' = c('4831440e17rik', 'a530032d15rik', 'atp5l', 'b130024g19rik', 'btg3', 'fau', 'fbl', 'gapdh', 'gm14401', 'gm14409', 'gm6180', 'h2afz', 'hnrnpa3', 'il1f5', 'lsm7', 'mrpl23', 'olfr613', 'pin4', 'ppia', 'prl8a1', 'rpl10a', 'rpl11', 'rpl17', 'rpl23a', 'rpl27', 'rpl27a', 'rpl28', 'rpl31', 'rpl37', 'rpl38', 'rpl5', 'rpl9', 'rps12', 'rps13', 'rps16', 'rps23', 'rps27', 'rps27a', 'sec61g', 'sp140', 'vwa7', 'zkscan4'),
+                        'early_genes_2' = c('btg2', 'ier2', 'atf3', 'apold1', 'ccn1', 'gimap6', 'tagap', 'tmem252', 'lrrc32'),
+                        'early_genes_2_no_artifacts' = c('btg2', 'ier2', 'atf3', 'apold1', 'ccn1', 'gimap6', 'tmem252'))
+
+
+####### SET NAMES OF CLUSTERS OF INTEREST ####### 
+
+
 
 
 
@@ -141,6 +159,8 @@ purrr::walk2(
 
 
 
+
+
 ### ARE ANY COLMUN IN SUBTABLES EMPTY? ###
 temp_data <- list(hippocampus, nucleus_accumbens, amygdala, prefrontal_cortex, mice, rats, vulnerable, resilient, chronic_unpredictable_stress, fear_conditioning, forced_swimming, immobilization_stress, social_stress, acute, medium, prolonged)
 
@@ -149,6 +169,8 @@ empty_tables <- lapply(temp_data_2, function(x) {subset(x, x == 0)})
 rm(temp_data, temp_data_2)
 # nucleus_accumbens - 1 kolumna, rats - 2 kolumny
 ### ARE ANY COLMUN IN SUBTABLES EMPTY? ###
+
+
 
 
 
@@ -206,14 +228,18 @@ paper_number_numbers_for_plot %>%
   xlab('number of papers')+
   ylab('number of genes')
 ### GET NUMBERS OF GENES IN ALL PAPERS DRAWING ###
+### GET SUBSET OF EXP NUMBERS ###
+temp <- readr::read_tsv(file = 'exp_and_paper_numbers/exp_number_and_percentage_hippocampus.tsv')
+temp_cluster_of_interest <- groups_of_genes$ribosomal
 
+temp_2 <- subset(x = temp, subset = temp$lower_final_gene_name %in% temp_cluster_of_interest)
+### GET SUBSET OF EXP NUMBERS ###
 
-
+  
 ### COMPARE NUMBERS OF GENES IN ALL PAPERS AND EXPERIMENTS TO GC DATA ###
-`88_best` <- c('ddit4','errfi1','klf9','bcl6','fkbp5','mt2','mt2a','nfkbia','pdk4','adcy9','cxxc5','dusp1','eva1a','litaf','nedd9','rhob','sgk1','sult1a1','tiparp','aldoc','arhgef3','arl4d','bcl6b','cables1','calm2','ccnd1','cdkn1a','cdo1','chst1','cyp7b1','ehd3','fzd1','gab1','gap43','gjb6','hepacam','id1','il6r','il6ra','irf1','jun','klf15','lhfp','lyve1','mertk','mgst1','mical2','myh2','ndrg2','npy1r','nr3c1','nudt9','osbpl3','pim3','plscr1','prr5','rasl11b','rdx','rhou','sall2','scamp2','sdc4','sesn1','slc25a33','sox2','sox4','sox9','spsb1','svil','tgfbr1','thra','tle4','tmem109','tob2','tsc22d3','vps37b','wipf3','wnt16','wnt7a','gpd1','ctgf','plekhf','dgkz','mtmr2','zfp36l1','azin1','cklf','ppp5c','sema6d','tle3')
 gc_data <- readr::read_tsv(file = 'GC_publication/gc.tsv')
 gc_data$in_gc_article <- T
-gc_data$in_gc_88_best_genes <- ifelse(test = gc_data$Gene %in% `88_best`, yes = T, no = F)
+gc_data$in_gc_88_best_genes <- ifelse(test = gc_data$Gene %in% groups_of_genes$`88_best`, yes = T, no = F)
 
 temp_biomart <-biomaRt::useMart("ENSEMBL_MART_ENSEMBL", dataset = "mmusculus_gene_ensembl")
 temp_bm_results <- biomaRt::getBM(
@@ -238,6 +264,36 @@ gc_and_papers <- merge(x = temp_bm_and_gc, y = paper_number_, by.x = 'Gene', by.
 readr::write_tsv(gc_and_experiements, 'GC_publication/gc_and_experiements.tsv')
 readr::write_tsv(gc_and_papers, 'GC_publication/gc_and_papers.tsv')
 ### COMPARE NUMBERS OF GENES IN ALL PAPERS AND EXPERIMENTS TO GC DATA ###
+
+
+
+### GET NEW NAMES FOR WHOLE GC DATA ###
+opts_whole_gc <- list()
+opts_whole_gc$input <- readr::read_tsv(file = 'whole_gc_data/gc_genes_all_input.txt')
+
+opts_whole_gc <- getting_all_gc_from_input_with_cols_nb_and_gene(opts_whole_gc)
+
+opts_whole_gc$output$biomart_detected <- tolower(opts_whole_gc$output$biomart_detected)
+
+readr::write_tsv(opts_whole_gc$output, path = 'whole_gc_data/gc_genes_all_output.tsv')
+### GET NEW NAMES FOR WHOLE GC DATA ###
+
+
+
+### COMPARE NUMBERS OF GENES IN ALL PAPERS AND EXPERIMENTS TO EXTENDED GC DATA ###
+
+opts_extended_gc <- list()
+
+opts_extended_gc$input <- readr::read_tsv(file = 'whole_gc_data/extended_gc_input.txt')
+opts_extended_gc$input$lower_final_gene_name <- tolower(opts_extended_gc$input$lower_final_gene_name)
+
+opts_extended_gc$pn <- readr::read_tsv('exp_and_paper_numbers/paper_number_.tsv')
+opts_extended_gc$exp <- readr::read_tsv('exp_and_paper_numbers/exp_number_and_percentage_.tsv')
+
+opts_extended_gc$merge <- Reduce(function(x,y){merge(x, y, by = 'lower_final_gene_name', all.x = T)}, opts_extended_gc)
+
+readr::write_tsv(x = opts_extended_gc$merge, path = 'whole_gc_data/extended_gc_output.tsv')
+### COMPARE NUMBERS OF GENES IN ALL PAPERS AND EXPERIMENTS TO EXTENDED GC DATA ###
 
 
 
@@ -307,11 +363,8 @@ analyses <-
       readr::write_tsv(x = x, path = paste0(anova_test_name, '/', anova_test_name, '_', y, '.tsv'))
     }
   )
-  
-  
-  
-    
-  ### PRINT GENERAL FIGURES FOR ANOVA ANALYSIS ###
+
+  ### PRINT GENERAL FIGURES FOR ANOVA ANALYSIS. ALSO CREATES OPTS_GGPLOT ###
   
   for(n in seq(length(analyses)))
   {
@@ -333,81 +386,127 @@ analyses <-
           labs(title = y) +
           xlab(opts_ggplot$groupname) +
           ylab(opts_ggplot$y)
-          
-          
+
+
         ggsave(paste0(opts_ggplot$dir_name, '/', y, '.jpg'))
       }
     )
   }
 ### PRINT GENERAL FIGURES FOR ANOVA ANALYSIS ###
-
-
+opts_individual <- list('logFC_col' = 'log')
+# rm(opts_ggplot)
 ### PRINT INDIVIDUAL GENE FIGURES FOR ANOVA ANALYSIS ###
-opts_ggplot$individual_genes_for_filtering_only <- c('apold1', 'egr1', 'egr2', 'fosb', 'fos', 'dusp1', 'arc', 'epyc', 'gng8', 'ankk1', 'fezf1', 'sh2d1a', 'slc22a3', 'dio2', 'klf2')
-opts_ggplot$individual_genes_groupname <- 'Brain_part_clean'
+# opts_individual$individual_genes_for_filtering_only <- c('apold1', 'egr1', 'egr2', 'fosb', 'fos', 'dusp1', 'arc', 'epyc', 'gng8', 'ankk1', 'fezf1', 'sh2d1a', 'slc22a3', 'dio2', 'klf2')
+# opts_individual$individual_genes_groupname <- 'Brain_part_clean'
 
-# opts_ggplot$individual_genes_for_filtering_only <- c('slc8b1', 'ss18', 'ch25h', 'lcn2', 'lrg1', 'egr1', 'egr2', 'fos', 'fosb', 'fosl2', 'htra1', 'ilf2', 'kcnq2', 'proz', 'slc9a3r1', 'socs5', 'vmn2r1')
-# opts_ggplot$individual_genes_groupname <- 'Stress_clean'
+# opts_individual$individual_genes_for_filtering_only <- c('slc8b1', 'ss18', 'ch25h', 'lcn2', 'lrg1', 'egr1', 'egr2', 'fos', 'fosb', 'fosl2', 'htra1', 'ilf2', 'kcnq2', 'proz', 'slc9a3r1', 'socs5', 'vmn2r1')
+# opts_individual$individual_genes_groupname <- 'Stress_clean'
 
 
-# opts_ggplot$individual_genes_for_filtering_only <- c('apold1', 'arc', 'arntl2', 'blacf1', 'btg2', 'ccn1', 'crkl', 'dusp1', 'egr1', 'egr2', 'fos', 'fosb', 'gcnt', 'gtf2a1', 'ier2', 'klf2', 'npas4', 'nr4a1', 'polq', 'sgk1')
-# opts_ggplot$individual_genes_groupname <- 'Repetitions_clean_days'
-# opts_ggplot$individual_genes_groupname <- 'Duration_clean_minutes'
-# opts_ggplot$individual_genes_groupname <- 'Measurement_latency_clean'
+# opts_individual$individual_genes_for_filtering_only <- c('apold1', 'arc', 'arntl2', 'blacf1', 'btg2', 'ccn1', 'crkl', 'dusp1', 'egr1', 'egr2', 'fos', 'fosb', 'gcnt', 'gtf2a1', 'ier2', 'klf2', 'npas4', 'nr4a1', 'polq', 'sgk1')
+# opts_individual$individual_genes_groupname <- 'Repetitions_clean_days'
+# opts_individual$individual_genes_groupname <- 'Duration_clean_minutes'
+# opts_individual$individual_genes_groupname <- 'Measurement_latency_clean'
 
-# opts_ggplot$individual_genes_for_filtering_only <- c('fos', 'sgk1', 'ccl5', 'hba-a1', 'aqp1', 'fkbp5', 'fam180a', 'fmc1', 'ptgds', 'grm1')
-# opts_ggplot$individual_genes_groupname <- 'exp'
+# opts_individual$individual_genes_for_filtering_only <- c('fos', 'sgk1', 'ccl5', 'hba-a1', 'aqp1', 'fkbp5', 'fam180a', 'fmc1', 'ptgds', 'grm1')
+# opts_individual$individual_genes_groupname <- 'exp'
 
-opts_ggplot$individual_genes_table <- subset(correlations_, correlations_$lower_final_gene_name %in% opts_ggplot$individual_genes_for_filtering_only)
+# opts_individual$individual_genes_for_filtering_only <- groups_of_genes$hemoglobin_cluster
+# opts_individual$individual_genes_groupname <- 'exp'
 
-dir.create(paste0(anova_test_name, '/individual_genes'))
+# opts_individual$individual_genes_for_filtering_only <- groups_of_genes$ribosomal
+# opts_individual$individual_genes_groupname <- 'Stress_sensitivity_clean'
 
+opts_individual$individual_genes_for_filtering_only <- groups_of_genes$early_genes_2_no_artifacts
+opts_individual$individual_genes_groupname <- 'Brain_part_clean'
+opts_individual$analysis_name <- 'early_genes_2'
+# opts_individual$individual_genes_for_filtering_only <- groups_of_genes$early_genes_2_no_artifacts
+# opts_individual$individual_genes_groupname <- 'Brain_part_clean'
+
+#To remove
+# temp <- readr::read_tsv(file = 'exp_and_paper_numbers/exp_number_and_percentage_.tsv')
+# temp_2 <- subset(x = temp, subset = temp$lower_final_gene_name %in% opts_individual$individual_genes_for_filtering_only)
+#To remove
+
+opts_individual$individual_genes_table <- subset(correlations_, correlations_$lower_final_gene_name %in% opts_individual$individual_genes_for_filtering_only)
+opts_individual$individual_genes_for_filtering_only <- NULL
+
+ 
+dir.create(opts_individual$analysis_name)
+dir.create(paste0(opts_individual$analysis_name, '/individual_genes'))
+
+# library(ggplot2)
 purrr::walk2(
-  .x = opts_ggplot$individual_genes_table$data,
-  .y = opts_ggplot$individual_genes_table$lower_final_gene_name,
+  .x = opts_individual$individual_genes_table$data,
+  .y = opts_individual$individual_genes_table$lower_final_gene_name,
   .f = function(x, y) {
       x %>%
-        ggplot(aes(x = as.factor(eval(parse(text = opts_ggplot$individual_genes_groupname))), y = eval(parse(text = opts_ggplot$y)))) +
+        ggplot(aes(x = as.factor(eval(parse(text = opts_individual$individual_genes_groupname))), y = eval(parse(text = opts_individual$logFC_col)))) +
         geom_jitter(size = 0.3, width = 0.25) +
         labs(title = y) +
-        xlab(opts_ggplot$individual_genes_groupname) +
-        ylab(opts_ggplot$y) +
+        xlab(opts_individual$individual_genes_groupname) +
+        ylab(opts_individual$logFC_col) +
         theme(axis.text.x = element_text(angle = 45, size = 5, hjust = 1))
 
-    dir.create(paste0(anova_test_name, '/individual_genes/', opts_ggplot$individual_genes_groupname))
+    dir.create(paste0(opts_individual$analysis_name, '/individual_genes/', opts_individual$individual_genes_groupname))
     
-    if (opts_ggplot$individual_genes_groupname == 'Stress_clean') {
-      ggsave(paste0(anova_test_name, '/individual_genes/', opts_ggplot$individual_genes_groupname, '/', y, '_', opts_ggplot$individual_genes_groupname, '.jpg'), width = 3, height = 4)
+    if (opts_individual$individual_genes_groupname == 'Stress_clean') {
+      ggsave(paste0(opts_individual$analysis_name, '/individual_genes/', opts_individual$individual_genes_groupname, '/', y, '_', opts_individual$individual_genes_groupname, '.jpg'), width = 3, height = 4)
     } else {
-      ggsave(paste0(anova_test_name, '/individual_genes/', opts_ggplot$individual_genes_groupname, '/', y, '_', opts_ggplot$individual_genes_groupname, '.jpg'))
+      ggsave(paste0(opts_individual$analysis_name, '/individual_genes/', opts_individual$individual_genes_groupname, '/', y, '_', opts_individual$individual_genes_groupname, '.jpg'))
     }
   }
 )
+
+
 ### PRINT INDIVIDUAL GENE FIGURES FOR ANOVA ANALYSIS ###
+### ADD INFO ON ENRICHMENT OF CLUSTER IN GIVEN EXPERIMENT CHARACTERISTIC ###
+# Needs subset of opts_individual$individual_genes_table .
+opts_individual <- is_characteristic_enriched_wrapper(opts_ggplot_ = opts_individual, value_of_interest_ = 'hippocampus', table_of_interest_ = 'Brain_part_clean')
+
+opts_individual$how_many_times_gene_detected_in_exp_per_paper <- purrr::map(
+    .x = opts_individual$individual_genes_table$data,
+    .f = function(x) {
+      temp_ <- subset(x = x, subset = x$logFC != 0)
+      temp_2 <- stringr::str_remove(temp_$exp, pattern = '_.*') 
+      return(as.data.frame(table(temp_2)))
+    }
+  )
+
+opts_individual <- get_number_of_exps_for_paper_per_gene_wrapper(opts_ggplot_ = opts_individual, papers_to_check_number_of_exprs_in = c('7', '44', '52'))
+
+opts_individual$nb_of_exps_for_value <- get_exps_in_which_gene_was_present_for_given_value_of_interest_wrapper( opts_individual_ = opts_individual, logFC_col = 'logFC', exp_col = 'exp', descriptions_ = descriptions_1_and_2_for_correlations, exp_col_in_descr_ = 'Group_ID', list_for_subsetting_name_is_colname_value_is_value_of_interest = list('Brain_part_clean' = 'hippocampus', 'Stress_duration' = 'acute') )
+### ADD INFO ON ENRICHMENT OF CLUSTER IN GIVEN EXPERIMENT CHARACTERISTIC ###
 ### ANOVA  ###
 
+opts_individual$names_for_nested_dataset
 
 
-### GET CLUSTERS  ###
+
+### GET CLUSTERS NB_1 - HUSHED PART ON THE BOTTOM ###
 opts_cluster <- list('folder' = 'clust_visualizations')
 dir.create(opts_cluster$folder)
 
-# opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% c('alas2', 'hbb-bt', 'hba-a1', 'hbb-bs', 'hba-a2', 'ch25h', 'lcn2', 'lrg1', 's100a8', 's100a9'))
-# opts_cluster$cluster_to_vis_name <- 'hemoglobin_cluster'
-# opts_cluster$exp_to_remove <- c('45_24', '15_2', '46_1', '2_4', '78_2', '78_4', '16_1')
-# 
-# opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% c('cldn1',	'epn3',	'msx1',	'col8a2',	'lbp',	'ace',	'clic6',	'mfrp',	'krt8',	'drc7',	'ecrg4',	'prr32',	'aqp1',	'col8a1',	'steap1',	'f5',	'enpp2',	'trpv4',	'otx2',	'folr1',	'cldn2',	'kcne2',	'tmem72',	'slc4a5',	'kl',	'sostdc1',	'ttr',	'col9a3',	'slc39a4',	'sema3b',	'prlr',	'cox8b',	'oca2',	'slc2a12',	'igf2',	'igfbp2',	'slc13a4',	'pcolce',	'wdr86'))
-# opts_cluster$cluster_to_vis_name <- 'choroid_cluster'
-# opts_cluster$exp_to_remove <- c('7_21', '53_1', '5_1', '45_5', '44_4', '1_1', '1_3', '14_1', '12_2', '12_4', '15_1', '13_1', '78_2', '13_3', '25_2', '45_3')
-# 
-# opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% c('cdkn1a',	'dusp1',	'egr1',	'egr2',	'fosb',	'fos',	'arc',	'irs2',	'junb',	'midn',	'b4galt1',	'fam107a',	'coq10b',	'gch1',	'csrnp1',	'per1',	'sgk1',	'ddit4',	'tsc22d3',	'pnpla2'))
-# opts_cluster$cluster_to_vis_name <- 'early_genes_cluster'
-# opts_cluster$exp_to_remove <- c('67_1', '25_4', '7_17', '19_1', '19_2', '19_3', '19_4', '14_1', '13_3', '2_4')
+opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% groups_of_genes$additional_1)
+opts_cluster$cluster_to_vis_name <- 'additional_1'
+opts_cluster$exp_to_remove <- NA
 
-unique(our_genes$external_gene_name)
+opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% groups_of_genes$additional_2)
+opts_cluster$cluster_to_vis_name <- 'additional_2'
+opts_cluster$exp_to_remove <- NA
+
+
+
+opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% groups_of_genes$additional_4)
+opts_cluster$cluster_to_vis_name <- 'additional_4'
+opts_cluster$exp_to_remove <- NA
+
+opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% groups_of_genes$additional_5)
+opts_cluster$cluster_to_vis_name <- 'additional_5'
+opts_cluster$exp_to_remove <- c('6_1', '2_2', '2_1', '15_2', '15_5', '25_2', '15_1', '13_1', '13_2', '1_3', '12_4', '12_2', '44_3', '78_2', '3_1', '67_3', '1_1', '78_4', '14_1', '2_4', '45_5')
 
 opts_cluster$cluster_to_vis_prepared <- prepare_for_clustering_wrapper(spread_df = opts_cluster$cluster_to_vis, remove_exp_with_this_many_hits = 1)
-
+      
 opts_cluster$cluster_to_vis_prepared <- opts_cluster$cluster_to_vis_prepared[, !(colnames(opts_cluster$cluster_to_vis_prepared) %in% opts_cluster$exp_to_remove)]
 
 dev.off()
@@ -424,10 +523,42 @@ write.table(
   col.names = NA,
   dec = '.'
 )  
+### GET CLUSTERS NB_1 - HUSHED PART ON THE BOTTOM ###
 
 
 
-### GET CLUSTERS  ###
+
+### GET EXPRESSION STABILITY FOR GIVEN CLUSTER PER EXPERIMENT ###
+temp <- as.data.frame(t(opts_cluster$cluster_to_vis_prepared))
+temp_names <- as.data.frame(rownames(temp), stringsAsFactors = F)
+temp_2 <- cbind(temp_names, temp)
+colnames(temp_2) <- stringr::str_replace(string = colnames(temp_2), pattern = 'rownames\\(temp\\)', replacement = 'lower_final_gene_name')
+
+get_number_and_percentage_of_directionality_of_paper_and_exp_first_column_names_wrapper(temp_2, opts_cluster$cluster_to_vis_name)
+### GET EXPRESSION STABILITY FOR GIVEN CLUSTER PER EXPERIMENT ###
+
+
+
+
+### GET EXPRESSION STABILITY FOR GIVEN CLUSTER FROM ALL ANALYSES ###
+opts_expr_stability <- list()
+opts_expr_stability$file_names <- as.list(list.files(path = 'exp_and_paper_numbers', pattern = 'exp_number_and_percentage.*'))
+opts_expr_stability$genes_to_subset <- groups_of_genes$early_genes_2_no_artifacts
+opts_expr_stability$name_of_col_with_gene_names <- 'lower_final_gene_name'
+opts_expr_stability$name_of_col_with_percentage <- 'perc_of_upregulated' 
+
+opts_expr_stability$files <-
+  lapply(opts_expr_stability$file_names, function(x) {
+    temp <- readr::read_tsv(file = paste0('exp_and_paper_numbers/', x))
+    temp <- subset(x = temp, subset = temp[[opts_expr_stability$name_of_col_with_gene_names]] %in% opts_expr_stability$genes_to_subset)  })
+
+opts_expr_stability$files_mean_SD <-
+  lapply(opts_expr_stability$files, function(x) {
+    temp <- mean(x[[opts_expr_stability$name_of_col_with_percentage]])
+    temp2 <- sd(x[[opts_expr_stability$name_of_col_with_percentage]])
+    return(paste0('Mean: ', temp, ', SD: ', temp2)) })
+### GET EXPRESSION STABILITY FOR GIVEN CLUSTER FROM ALL ANALYSES ###
+
 
 
 
@@ -452,6 +583,76 @@ rm(our_genes, mergement)
 
 
 
+### GET HUMAN GENES  ###
+opts_human <- list()
+opts_human$genes <- subset(final_good_dataset_1_and_2, subset = final_good_dataset_1_and_2$Paper == 27) %>%
+  dplyr::select(lower_final_gene_name)
+
+opts_human$pn <- readr::read_tsv('exp_and_paper_numbers/paper_number_.tsv')
+opts_human$exp <- readr::read_tsv('exp_and_paper_numbers/exp_number_and_percentage_.tsv')
+opts_human$pn_pfc <- readr::read_tsv('exp_and_paper_numbers/paper_number_prefrontal_cortex.tsv')
+opts_human$exp_pfc <- readr::read_tsv('exp_and_paper_numbers/exp_number_and_percentage_prefrontal_cortex.tsv')
+
+opts_human$merge <- Reduce(function(x,y){merge(x, y, by = 'lower_final_gene_name', all.x = T)}, list(opts_human$genes, opts_human$pn, opts_human$exp, opts_human$pn_pfc, opts_human$exp_pfc))
+
+colnames(opts_human$merge) <- stringr::str_replace(string = colnames(opts_human$merge), pattern = '.x', replacement = '_all_data')
+colnames(opts_human$merge) <- stringr::str_replace(string = colnames(opts_human$merge), pattern = '.y', replacement = '_pfc')
+
+dir.create('human_genes')
+readr::write_tsv(x = opts_human$merge, path = 'human_genes/human_genes.tsv')
+
+### GET HUMAN GENES  ###
+
+
+
+### GET INTEGRATED DATA  ###
+library(Hmisc)
+load('final_good_dataset_1_and_2') #232 146
+load('reformated_raw_dataset_1_and_2') #268 669
+load('descriptions_1_and_2')
+
+temp_final_good_dataset_1_and_2 <- final_good_dataset_1_and_2
+temp_reformated_raw_dataset_1_and_2 <- reformated_raw_dataset_1_and_2
+temp_descriptions_1_and_2 <- descriptions_1_and_2
+
+temp_final_good_dataset_1_and_2$for_merge <- paste0(temp_final_good_dataset_1_and_2$Paper, temp_final_good_dataset_1_and_2$Experiment, temp_final_good_dataset_1_and_2$logFC, temp_final_good_dataset_1_and_2$adj_p, temp_final_good_dataset_1_and_2$Gene_symbol, temp_final_good_dataset_1_and_2$GenBank_Accession, temp_final_good_dataset_1_and_2$Gene_title, temp_final_good_dataset_1_and_2$`GEO ID`, temp_final_good_dataset_1_and_2$Ensembl_ID, temp_final_good_dataset_1_and_2$p)
+
+temp_reformated_raw_dataset_1_and_2$for_merge <- paste0(temp_reformated_raw_dataset_1_and_2$Paper, temp_reformated_raw_dataset_1_and_2$Experiment, temp_reformated_raw_dataset_1_and_2$logFC, temp_reformated_raw_dataset_1_and_2$adj_p, temp_reformated_raw_dataset_1_and_2$Gene_symbol, temp_reformated_raw_dataset_1_and_2$GenBank_Accession, temp_reformated_raw_dataset_1_and_2$Gene_title, temp_reformated_raw_dataset_1_and_2$`GEO ID`, temp_reformated_raw_dataset_1_and_2$Ensembl_ID, temp_reformated_raw_dataset_1_and_2$p)
+
+temp_super <- merge(x = temp_reformated_raw_dataset_1_and_2, y = temp_final_good_dataset_1_and_2, by = 'for_merge', all.x = T) #268 669 vs 268 671
+
+temp_super_2 <- temp_super[duplicated(temp_super$for_merge),]
+
+temp_superv2 <- temp_super[-c(63312, 63313),] %>% # 2 duplicated entries!!
+  dplyr::select(dplyr::ends_with(".x"), lower_final_gene_name) %>%
+  dplyr::select(-c(everything.x, Entry_number.x))
+
+colnames(temp_superv2) <- stringr:: str_remove(string = colnames(temp_superv2), pattern = '\\.x')
+
+temp_superv2$for_merge_2 <- paste0(temp_superv2$Paper, '_', temp_superv2$Experiment)
+
+temp_descriptions_1_and_2$for_merge_2 <- paste0(temp_descriptions_1_and_2$Paper_ID, '_', temp_descriptions_1_and_2$Group_ID)
+
+temp <- integrated_data
+
+integrated_data <- merge(x = temp_superv2, y = temp_descriptions_1_and_2, by = 'for_merge_2')
+integrated_data$for_merge_2 <- NULL
+integrated_data$Measurment_latency <- stringr::str_replace_all(string = integrated_data$Measurment_latency, pattern = '\t', replacement = ' ')
+integrated_data$Measurment_latency <- stringr::str_replace_all(string = integrated_data$Measurment_latency, pattern = '\n', replacement = ' ')
+integrated_data$Repetitions <- stringr::str_replace_all(string = integrated_data$Repetitions, pattern = '\n', replacement = ' ')
+integrated_data$reference_1 <- stringr::str_replace_all(string = integrated_data$reference_1, pattern = '\n', replacement = ' ')
+integrated_data$Stress <- stringr::str_replace_all(string = integrated_data$Stress, pattern = '\n', replacement = ' ')
+integrated_data$Brain_part <- stringr::str_replace_all(string = integrated_data$Brain_part, pattern = '\n', replacement = ' ')
+integrated_data$Paper_link_2 <- stringr::str_replace_all(string = integrated_data$Paper_link_2, pattern = '\n', replacement = ' ')
+
+save(integrated_data, file = 'integrated_data')
+
+dir.create('integrated')
+
+write.table(x = integrated_data, file = 'integrated/integrated_data_v4.tsv', sep = '\t', dec = ',', row.names = F, quote = F)
+
+rm(temp_final_good_dataset_1_and_2, temp_reformated_raw_dataset_1_and_2, temp_descriptions_1_and_2)
+### GET INTEGRATED DATA  ###
 
 
 
@@ -504,13 +705,27 @@ test_desc <- subset(x = descriptions_1_and_2_for_correlations, descriptions_1_an
 
 
 
+load('final_good_dataset_1_and_2')
+load('reformated_raw_dataset') #261475
+load('reformated_raw_dataset_2') #9173
+load('reformated_raw_dataset_1_and_2') #268669
+#reformated_raw_dataset - c(10, 49) # 259496
+#reformated_raw_dataset + reformated_raw_dataset_2 = 268669
 
+test <- subset(x = reformated_raw_dataset, subset = reformated_raw_dataset$Paper %nin% c(10, 49))
 
 
+library(Hmisc)
+test <- subset(x = descriptions_1_and_2_for_correlations, subset = (descriptions_1_and_2_for_correlations$Stress_duration == 'acute') & (descriptions_1_and_2_for_correlations$Group_ID %nin% c('32_1', '32_2', '61_1', '61_2')))
+test <- subset(x = descriptions_1_and_2_for_correlations, subset = (descriptions_1_and_2_for_correlations$Brain_part_clean == 'hippocampus') & (descriptions_1_and_2_for_correlations$Group_ID %nin% c('32_1', '32_2', '61_1', '61_2')))
 
+test <- subset(x = descriptions_1_and_2_for_correlations, subset = (descriptions_1_and_2_for_correlations$Stress_duration == 'acute') & (descriptions_1_and_2_for_correlations$Group_ID %nin% c('32_1', '32_2', '61_1', '61_2')) & !(stringr::str_detect(string = descriptions_1_and_2_for_correlations$Group_ID, pattern = '^52.*') ))
+test <- subset(x = descriptions_1_and_2_for_correlations, subset = (descriptions_1_and_2_for_correlations$Brain_part_clean == 'hippocampus') & (descriptions_1_and_2_for_correlations$Group_ID %nin% c('32_1', '32_2', '61_1', '61_2')) & !(stringr::str_detect(string = descriptions_1_and_2_for_correlations$Group_ID, pattern = '^52.*') ))
 
 
+test <- subset(x = descriptions_1_and_2_for_correlations, subset = (descriptions_1_and_2_for_correlations$Stress_duration == 'acute') & (descriptions_1_and_2_for_correlations$Group_ID %nin% c('32_1', '32_2', '61_1', '61_2')) & descriptions_1_and_2_for_correlations$Brain_part_clean == 'hippocampus')
 
+test2 <- 
 
 
 
@@ -521,296 +736,53 @@ test_desc <- subset(x = descriptions_1_and_2_for_correlations, descriptions_1_an
 
 
 
+test <- unique(final_good_dataset_1_and_2$lower_final_gene_name)
 
 
-# correlations_gender <- anova_on_nested_df(df_ = correlations_, value_col_name = 'logFC', trait_col_name = 'Gender_clean', main_test = 'anova', post_hoc = 'tukeyhsd') #4021 vs 2000 vs 1991
-# 
-# correlations_species <- anova_on_nested_df(df_ = correlations_, value_col_name = 'logFC', trait_col_name = 'Species', main_test = 'anova', post_hoc = 'tukeyhsd') #568 vs 240 vs 230
-# 
-# correlations_stress_sens <- anova_on_nested_df(df_ = correlations_, value_col_name = 'logFC', trait_col_name = 'Stress_sensitivity_clean', main_test = 'anova', post_hoc = 'tukeyhsd') # 34 vs 0 
-# 
-# correlations_stress <- anova_on_nested_df(df_ = correlations_, value_col_name = 'logFC', trait_col_name = 'Stress_clean') # 4091 vs 2687
-# 
-# correlations_brain_part <- anova_on_nested_df(df_ = correlations_, value_col_name = 'logFC', trait_col_name = 'Brain_part_clean') #16213 vs 15183
-# correlations_gender <- correlations_[1:100,]
-# 
-# correlations_gender$k_w_pval <- as.numeric(purrr::map(.x = correlations_gender$data, ~ { broom::tidy(kruskal.test(logFC ~ Gender_clean, data = .x))$p.value[[1]] }))
-# 
-# correlations_gender$k_w_should_i_post <- ifelse(test = correlations_gender$k_w_pval < 0.05, T, F)
-# 
-# correlations_gender <- subset(x = correlations_gender, subset = correlations_gender$k_w_should_i_post == T) %>%
-#   dplyr::select(-k_w_should_i_post)
-# 
-# correlations_gender$conover <-
-#   purrr::map(.x = correlations_gender$data, ~ {
-#     tryCatch(
-#       {conover.test::conover.test(
-#         x = .x$logFC,
-#         g = .x$Gender_clean,
-#         method = 'bh'
-#       ) },
-#       error = function(c){return(NA)})})
-# correlations_$stress_cor <- as.numeric(purrr::map(.x = correlations_$data, .f = function(x){ cor(x = x$logFC, y = as.integer(x$Stress_clean), use = "pairwise.complete.obs")  }))
-# correlations_$brain_part_cor <- as.numeric(purrr::map(.x = correlations_$data, .f = function(x){ cor(x = x$logFC, y = as.integer(x$Brain_part_clean), use = "pairwise.complete.obs")  }))
-# 
-# correlations_$species_cor <- as.numeric(purrr::map(.x = correlations_$data, .f = function(x){ cor(x = x$logFC, y = as.integer(x$Species), use = "pairwise.complete.obs")  }))
-# 
-# correlations_$stress_sens_Pear_cor_pw_cm_obs <- as.numeric(purrr::map(.x = correlations_$data, .f = function(x){ cor(x = x$logFC, y = as.integer(x$Stress_sensitivity_clean), use = "pairwise.complete.obs")  }))
-# correlations_$stress_sens_Spear_cor <- as.numeric(purrr::map(.x = correlations_$data, .f = function(x){ cor(x = x$logFC, y = as.integer(x$Stress_sensitivity_clean), method = "spearman")  }))
-
-# correlations_$gender_Pear_cor_pw_cm_obs <- as.numeric(purrr::map(.x = correlations_$data, .f = function(x){ cor(x = x$logFC, y = as.integer(x$Gender_clean), use = "pairwise.complete.obs")  }))
-# correlations_$gender_Spear_cor <- as.numeric(purrr::map(.x = correlations_$data, .f = function(x){ cor(x = x$logFC, y = as.integer(x$Gender_clean), method = "spearman")  }))
-# t-test/non-parametric/normality
-# 
-# test_1 <- purrr::map(.x = correlations_$data, ~ { broom::tidy(aov(logFC ~ Gender_clean, data = .x))$p.value[1] })
-
-
-
-
-
-
 
-  
 
-### GETING CORRELATIONS ###
-
-
-
-
-
-
-
-
-# temp <- subset(exp_number_and_percentage_, exp_number_and_percentage_$no_of_exps == 0)
-# temp_outer_join <- dplyr::anti_join(x = exp_number_and_percentage_, y = paper_number_, "lower_final_gene_name")
+### GET CLUSTERS NB_2 - HUSHED PART SOMEWHERE UP ###
+# opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% groups_of_genes$hemoglobin_cluster)
+# opts_cluster$cluster_to_vis_name <- 'hemoglobin_cluster'
+# opts_cluster$exp_to_remove <- c('45_24', '15_2', '46_1', '2_4', '78_2', '78_4', '16_1')
 # 
-# temp_final_dataset <- subset(x = final_good_dataset_1_and_2, subset = final_good_dataset_1_and_2$lower_final_gene_name %in% temp_outer_join$lower_final_gene_name)
+# opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% groups_of_genes$choroid_cluster)
+# opts_cluster$cluster_to_vis_name <- 'choroid_cluster'
+# opts_cluster$exp_to_remove <- c('7_21', '53_1', '5_1', '45_5', '44_4', '1_1', '1_3', '14_1', '12_2', '12_4', '15_1', '13_1', '78_2', '13_3', '25_2', '45_3')
 # 
-# readr::write_tsv(x = temp_outer_join, path = 'genes_present_only_in_experiments.tsv')
-# readr::write_tsv(x = temp_final_dataset, path = 'genes_present_only_in_experiments_dataset_used_as_input_for_data_analysis.tsv')
-#     
-# 
-# length(paper_number_[[1]]) + length(temp_outer_join[[1]]) == length(exp_number_and_percentage_[[1]])
-# 
-# 
-# temp_final_dataset <- subset(x = final_good_dataset_1_and_2, subset = final_good_dataset_1_and_2$Paper == 45)
-
+# opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% groups_of_genes$early_genes_cluster)
+# opts_cluster$cluster_to_vis_name <- 'early_genes_cluster'
+# opts_cluster$exp_to_remove <- c('67_1', '25_4', '7_17', '19_1', '19_2', '19_3', '19_4', '14_1', '13_3', '2_4')
 
+# opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% c('alas2', 'hbb-bt', 'hba-a1', 'hbb-bs', 'hba-a2', 'ch25h', 'lcn2', 'lrg1', 's100a8', 's100a9', 'cd68', 'cd206'))
+# opts_cluster$cluster_to_vis_name <- 'hemoglobin_cluster_and_markers'
+# opts_cluster$exp_to_remove <- c('45_24', '15_2', '46_1', '2_4', '78_2', '78_4', '16_1')
 
-
-
-
-# ### This will be our input data for further analysis. It contains only significant columns of "Paper", "GroupID", "ensembl_gene_name", "logFC": 
-# SHORT_SINGLE_TEST_ANNOTATION <- SINGLE_TEST_ANNOTATION %>%
-#   select("Paper", "GroupID", "ensembl_gene_name", "logFC") %>%
-#   group_by(Paper, GroupID, ensembl_gene_name) %>%
-#   nest()
-# 
-# # I dont know why purrr::map didnt work for this. Either way, we just lapply this. Here we write UP or DOWN for every logFC for given genename in given experiment (not paper)
-# SHORT_SINGLE_TEST_ANNOTATION$directionality <- lapply(X = SHORT_SINGLE_TEST_ANNOTATION$data, FUN = function(x) { mutate(x, Symbol_direction = ifelse(logFC > 0, "UP", "DOWN")) } ) 
-# 
-# # Here we count how many UPs and DOWNs are in every given genename in given experiment (not paper)
-# SHORT_SINGLE_TEST_ANNOTATION$directionality <- lapply(X = SHORT_SINGLE_TEST_ANNOTATION$directionality, FUN = function (x) {table(select(x, "Symbol_direction"))} ) 
+# opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% c('slamf1', 'itga2b', 'gata1'))
+# opts_cluster$cluster_to_vis_name <- 'platelets'
 # 
-# # Here we establish actual status of gene in given experiment
-# SHORT_SINGLE_TEST_ANNOTATION$sum_directionality <- as.character(lapply(X = SHORT_SINGLE_TEST_ANNOTATION$directionality, 
-#                                                                        FUN = function(x) {
-#                                                                          if (length(x) == 1 && grepl(pattern = "UP", names(x))) { "UP" }
-#                                                                          else if (length(x) == 1 && grepl(pattern = "DOWN", names(x))) { "DOWN" }
-#                                                                          else if (length(x) == 2 && grepl(pattern = "DOWN", names(x)) && grepl(pattern = "DOWN", names(x))) { "MIXED" }
-#                                                                          else { "ERROR" }
-#                                                                        }))
+# opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% c('aif1' , 'ccl22' , 'cd14' , 'fcgr3a' , 'fcgr2a' , 'cd33' , 'cd40' , 'ptprc' , 'fcgr1a' , 'cd68' , 'cd163' , 'ptgs1' , 'cx3cr1' , 'ftl', 'slc2a5' ,'hla-dra' , 'hla-drb1' , 'p2ry12' , 'spi1' , 'tlr2' , 'tmem119' , 'trem2' ))
+# opts_cluster$cluster_to_vis_name <- 'microglia'
 # 
-# # Here we remove MIXED expression and multiple genenames
-# FILT_SHORT_SINGLE_TEST_ANNOTATION <- SHORT_SINGLE_TEST_ANNOTATION %>%
-#   #filter(!grepl(pattern = "(.*);(.*)", SHORT_SINGLE_TEST_ANNOTATION$ensembl_gene_name)) %>%
-#   filter(!sum_directionality == "MIXED") %>%
-#   filter(!sum_directionality == "ERROR") %>%
-#   filter(!is.na(ensembl_gene_name))
+# opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% c('mme','csf3r','itgam','itgax','il3ra','anpep','cd14','fut4','fcgr3','pecam1','fcgr2b','cd33','itga4','sell','fcgr1a','ceacam8','c5ar1','cxcr1','cxcr2','fpr1','cd68','gr1','hla-dr','jaml','lcn2','prtn3','tlr2'))
+# opts_cluster$cluster_to_vis_name <- 'neutrophile'
 # 
-# # Here we add mean to each !!! Perhaps this should be final input, because it has: 1) removed genes giving UP+DOWN in the same experiment, 2) removed NAs
-# STDINPUT_FILT_SHORT_SIN_T_ANNO <- FILT_SHORT_SINGLE_TEST_ANNOTATION %>%
-#   mutate(mean = as.numeric(map(data, function(x) { as.numeric(mean(x[[1]]))} ))) %>% ## This way we give actuall vector to function, not a data table(tibble)
-#   select("Paper", "GroupID", "ensembl_gene_name", "sum_directionality", "mean") 
-# ### !!! THE IDEA IS THAT THE "STDINPUT_FILT_SHORT_SIN_T_ANNO" IS THE INPUT FOR ALL FURTHER INQUIRIES !!! ###
+# opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% c('cd4','il2ra','cd45ra','cd8a','sell','cd27','il7r','foxp3','ccr7','ptprc','cd8a','cd8b','ccr6','itgam','tnfrsf8','ptprc','cd6','ctla4','il2ra','ablim1','actn1','bcl2','c1orf162','snhg32','ccr10','ccr4','cd101','itgb2','cd28','pecam1','entpd1','cd3d','itga4','cd55','ncam1','b3gat1','fas','cxcr3','eif3l','fam117b','fcrl3','lrrc32','gpr183','ifng','il4','il7r','ldlrap1','snhg29','lrrn3','mal','myc','nell2','nosip','prf1','serinc5','tcf7','tmem204','trabd2a','txk'))
+# opts_cluster$cluster_to_vis_name <- 't_cell_homo'
 # 
-# # tO raczej nie wyjdzie - nie da siÄ™ wyciÄ…gnÄ…Ä‡ wĹ‚aĹ›ciwej wartoĹ›ci ekspresji z dwĂłch rĂłznych eksperymentĂłw w tym samym paper. MoĹĽe lepiej po prostu dowiedzieÄ‡ siÄ™, ktĂłre geny sÄ… unikatowe dla danego paper i usunÄ…Ä‡ te geny z normalnie uĹĽywanego wczeĹ›niej test annotation pliku. 
+# opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% c('tcf7','trbc2','cd4','cd8a','cd3e','cd8a','cd8b1','izumo1r','cd3e','ccl5','cd4','igfbp4','nrp1'))
+# opts_cluster$cluster_to_vis_name <- 't_cell_mus'
 # 
+# opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% c('cd68', 'mrc1'))
+# opts_cluster$cluster_to_vis_name <- 'macrophages'
 # 
+# opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% c('arg2','bhlhe40','ccl22','cd14','cd163','siglec1','cd19','cd1a','cd1c','cd200r1','cd68','cd74','cd80','cd86','cd93','cib1','ciita','crem','cx3cr1','cxcl10','cybb','cyth1','dock2','dok3','dse','emb','cyria','fgr','flt3','fosl2','fpr3','ftl','fxyd5','gpr132','gpr65','hla-dmb','hla-dqa1','hla-dra','hla-drb1','hla-drb5','ido1','ifitm2','il10','il1rn','iqgap1','itga4','itgam','kit','kynu','lyve1','lyz','metrnl','mrc1','ms4a6a','ms4a7','mxd1','myb','nfil3','nos2','pde4b','pim1','plac8','plbd1','pltp','slc66a3','ptpn7','runx1','s100a11','samhd1','sh3bgrl','socs3','spint2','syngr2','tgfbi','tgm2','thbd','timd4','tlr1','tlr2','tlr4','tlr8','tmem119','tmem123','tnfsf13','trem1','vopp1'))
+# opts_cluster$cluster_to_vis_name <- 'macrophages_many'
 # 
-# 
-# #######################################
-# ####### PREPARE FINALIZED TABLE ####### 
-# #######################################
-# 
-# check_was_the_spliting_of_df_by_filtering_ok(df_original = raw_dataset, list_df_splited = list(finalized, leftovers_for_checking_data_integrity))
-# 
-# length(finalized[[1]]) + length(leftovers_for_checking_data_integrity[[1]])
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% c('gfap','aldh1l1','atp13a4','cbs','sox9','slc1a3','slc1a2'))
+# opts_cluster$cluster_to_vis_name <- 'astrocytes'
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-##############################################################
-##############################################################
-##############################################################
-
-
-
-
-
-
-
-# ###### WHOLE DATASET ANALYSIS ######
-# 
-# # Tutaj liczymy ile razy geny wystepuja w oryginalnym dataset (w eksperymentach, nie w paperach)
-# HOW_MANY_TIMES_EXP_STDINPUT <- STDINPUT_FILT_SHORT_SIN_T_ANNO %>%
-#   select(ensembl_gene_name) %>%
-#   group_by(ensembl_gene_name) %>%
-#   summarise(number = n())
-# 
-# # Tutaj liczymy ile razy geny wystepuja w oryginalnym dataset (w paperach)
-# HOW_MANY_TIMES_PAPER_STDINPUT <- STDINPUT_FILT_SHORT_SIN_T_ANNO %>%
-#   select(Paper, ensembl_gene_name) %>%
-#   unique() %>%
-#   select(ensembl_gene_name) %>%
-#   group_by(ensembl_gene_name) %>%
-#   summarise(number = n())
-# 
-# ###### Tutaj robimy specjalny input do klastrowania, w ktĂłrym uĹĽywamy tylko genĂłw, ktĂłre zostaĹ‚y wykryte przynajmniej w 3 oddzielnych paperach ###### 
-# UP3_HOW_MANY_TIMES_PAPER_STDINPUT <- HOW_MANY_TIMES_PAPER_STDINPUT %>%
-#   filter(number >= 3)
-# 
-# UP3_PAPER_CLUSTERING_INPUT <- merge(STDINPUT_FILT_SHORT_SIN_T_ANNO, UP3_HOW_MANY_TIMES_PAPER_STDINPUT, by = "ensembl_gene_name", all.y = T)
-# 
-# FOR_CLUST_UP3_PAPER_CLUSTERING_INPUT <- UP3_PAPER_CLUSTERING_INPUT %>%
-#   FOR_CLUS()
-# #readr::write_tsv(x = FOR_CLUST_UP3_PAPER_CLUSTERING_INPUT, path = "FOR_CLUST_UP3_PAPER_CLUSTERING_INPUT.tsv")  
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# ###### Tutaj robimy specjalny input do klastrowania, w ktĂłrym uĹĽywamy tylko genĂłw, ktĂłre zostaĹ‚y wykryte przynajmniej w 3 oddzielnych paperach ###### 
-# 
-# 
-# # Tutaj liczymy ile razy geny wyst?puj? w oryginalnym dataset, patrz?c czy s? up czy down
-# UorDWHOLE_NO_UNIDS_ORG_DATA <- NO_UNIDS_ORG_DATA %>%
-#   select(Gene_symbol, logFC) %>%
-#   mutate(Symbol_direction = ifelse(logFC > 0, "UP", "DOWN")) %>%
-#   mutate(Symbol_direction = paste(Gene_symbol, Symbol_direction, sep = "_")) %>%
-#   group_by(Symbol_direction) %>%
-#   summarise(number = n()) %>% 
-#   mutate(Gene_symbol2 = str_remove(Symbol_direction, "_.*"))
-# 
-# ###### WHOLE DATASET ANALYSIS ######
-# 
-# 
-# 
-# ###### COMPARISONS-CENTERED ANALYSIS ######
-# 
-# 
-# 
-# ### Here we set whether we want to analyze papers or comparisons
-# P_or_C = quo(Paper) #" GroupID OR Paper "
-# 
-# 
-# 
-# # Tutaj liczymy ile razy geny wyst?puj? W KA?DYM Z POR?WNA?, nie patrz?c czy s? up czy down
-# COMP_NO_UNIDS_ORG_DATA <- NO_UNIDS_ORG_DATA %>%
-#   select(!!P_or_C, Gene_symbol) %>%
-#   group_by(!!P_or_C, Gene_symbol) %>%
-#   summarise(number = n())
-# 
-# 
-# 
-# # Tutaj liczymy ile razy geny wyst?puj? W KA?DYM Z POR?WNA?, patrz?c czy s? up czy down    
-# UorDCOMP_NO_UNIDS_ORG_DATA <- NO_UNIDS_ORG_DATA %>%
-#   select(!!P_or_C, Gene_symbol, logFC) %>%
-#   mutate(Symbol_direction = ifelse(logFC > 0, "UP", "DOWN")) %>%
-#   mutate(Symbol_direction = paste(Gene_symbol, Symbol_direction, sep = "_")) %>%
-#   group_by(!!P_or_C, Symbol_direction) %>%
-#   summarise(Sym_dir_number = n()) %>%
-#   mutate(Gene_symbol2 = str_remove(Symbol_direction, "_.*"))
-# 
-# 
-# 
-# #Divide data into genes expressed in single direction in given comparison, vs genes expressed in different direction (bad genes)
-# nonUNIQ_UorDCOMP_NO_UNIDS_ORG_DATA <- UorDCOMP_NO_UNIDS_ORG_DATA %>%
-#   group_by(!!P_or_C) %>%
-#   filter(duplicated(Gene_symbol2, fromLast = T) | duplicated(Gene_symbol2))
-# 
-# UNIQ_UorDCOMP_NO_UNIDS_ORG_DATA <- UorDCOMP_NO_UNIDS_ORG_DATA %>%
-#   group_by(!!P_or_C) %>%
-#   filter(!duplicated(Gene_symbol2, fromLast = T) & !duplicated(Gene_symbol2))
-# 
-# 
-# 
-# # Check if unique/duplicated division went well           
-# if (nrow(UorDCOMP_NO_UNIDS_ORG_DATA) - (nrow(nonUNIQ_UorDCOMP_NO_UNIDS_ORG_DATA) + nrow(UNIQ_UorDCOMP_NO_UNIDS_ORG_DATA)) != 0){ 
-#   stop("Hey, fwend! You have some wierd values in Your counted data, buddy! Better check whats happening, or Your results will smell of moose scrotum!")
-# }
-# 
-# 
-# 
-# # Here we make a table only with genes that were replicated in few comparisons
-# REPL_UNIQ_UorDCOMP_NO_UNIDS_ORG_DATA <- UNIQ_UorDCOMP_NO_UNIDS_ORG_DATA %>%
-#   filter(Sym_dir_number >= 3)
-# 
-# 
-# #Annotate base on Paper OR GroupID
-# ANNO_REPL_UNIQ_UorDCOMP_NO_UNIDS_ORG_DATA <- merge(REPL_UNIQ_UorDCOMP_NO_UNIDS_ORG_DATA, COMPARISONS, by = "Paper")
-# 
-# 
-# ###### COMPARISONS-CENTERED ANALYSIS ######
+# opts_cluster$cluster_to_vis <- subset(x = spread_medianed_final_good_dataset, spread_medianed_final_good_dataset$lower_final_gene_name %in% groups_of_genes$ribosomal)
+# opts_cluster$cluster_to_vis_name <- 'ribosomal'
+# opts_cluster$exp_to_remove <- NA
+### GET CLUSTERS NB_2 - HUSHED PART SOMEWHERE UP ###
