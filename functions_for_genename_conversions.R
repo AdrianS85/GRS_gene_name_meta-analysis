@@ -2082,6 +2082,34 @@ wrapper_for_repairing_second_batch_descriptions <- function(temp_descriptions_1_
   return(temp_descriptions_1_and_2_)
 }
 
+
+
+create_subset_of_exps_with_all_papers_wrapper_wrapper <- function(final_good_dataset___, experiments_to_include_df_with_group_id_col, save_as_chr_, group_id_col_str_ = 'Group_ID')
+{
+  include_these_exps <- experiments_to_include_df_with_group_id_col[[group_id_col_str_]]
+  
+  temp_ <- create_subset_of_exps_with_all_papers_wrapper(final_good_dataset__ = final_good_dataset___, experiments_to_include_ = include_these_exps, save_as_chr = save_as_chr_)
+  temp_[is.na(temp_)] <- 0
+  
+  readr::write_tsv(x = temp_, path = , paste0('for_clustering_', save_as_chr_, '.tsv'))
+  save(temp_, file = paste0('for_clustering_', save_as_chr_))
+  assign(x = save_as_chr_, value = temp_, envir = globalenv())
+}
+
+
+create_subset_of_exps_with_all_papers_wrapper <- function(final_good_dataset__ = final_good_dataset, experiments_to_include_ = experiments_to_include, save_as_chr)
+{
+  subset_matrix <-subset(final_good_dataset__, subset = final_good_dataset__$Experiment %in% experiments_to_include_)
+  
+  medianed_subset_matrix <- subset_matrix %>%
+    dplyr::group_by(Experiment, lower_final_gene_name) %>%
+    dplyr::summarize(logFC_median = median(logFC))
+  
+  spread_medianed_subset_matrix <- tidyr::spread(data = medianed_subset_matrix, key = Experiment, value = logFC_median)
+  
+  return(spread_medianed_subset_matrix)
+}
+
 # Not implemented fully yet, cause not needed after all
 # do_dunnet <- function(df__, value_col_name_, trait_col_name_)
 # {

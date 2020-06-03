@@ -3,7 +3,7 @@ source('https://raw.githubusercontent.com/AdrianS85/helper_R_functions/master/li
 # rm(list = ls(pattern = 'temp.*|test.*'))
 load('final_good_dataset_1_and_2') #No genes for experiments 32_1, 32_2, 61_1, 61_2!!
 load('reformated_raw_dataset_1_and_2')
-load('descriptions_1_and_2') #Includes descriptions for experiments 32_1, 32_2, 61_1. Also, later columns from experiments from second batch are moved one column to the right. This means that 1 resilient and 1 vulnerable group are not included in the analysis. Ive repaired this, but the stress/sensitivity analysis that I made before are obsolete, I removed them and did not made them back
+load('descriptions_1_and_2') #Includes descriptions for experiments 32_1, 32_2, 61_1. Also, later columns from experiments from second batch are moved one column to the right. This means that 1 resilient and 1 vulnerable group are not included in the analysis. Ive repaired this, but the stress/sensitivity analysis that I made before are obsolete, I removed them and did not make them back
 
 ####### SET NAMES OF CLUSTERS OF INTEREST ####### 
 groups_of_genes <- list('hemoglobin_cluster' = c('alas2', 'hbb-bt', 'hba-a1', 'hbb-bs', 'hba-a2', 'ch25h', 'lcn2', 'lrg1', 's100a8', 's100a9'), 
@@ -173,7 +173,7 @@ rm(temp_data, temp_data_2)
 
 
 
-
+### BEWARE! HERE WE SUBSET GENES THAT ARE PRESENT IN 3 ---PAPERS--- NOT EXPERIMENTS
 ### GET NUMBERS OF GENES IN EXPS AND PAPERS ###
 load('spread_medianed_final_good_dataset')
 
@@ -653,6 +653,183 @@ write.table(x = integrated_data, file = 'integrated/integrated_data_v4.tsv', sep
 
 rm(temp_final_good_dataset_1_and_2, temp_reformated_raw_dataset_1_and_2, temp_descriptions_1_and_2)
 ### GET INTEGRATED DATA  ###
+
+
+
+### GET ALL GENES FOR SOME SUBSETS  ###
+search_for <- list('acute_all' = 'acute', 'medium_all' = 'medium', 'prolonged_all' = 'prolonged')
+
+experiments_to_subset <- lapply(X = search_for, function(x){
+  descriptions_1_and_2 %>%
+    dplyr::select(Group_ID, Stress_duration) %>%
+    dplyr::filter(descriptions_1_and_2$Stress_duration == x)
+})
+
+purrr::walk2(
+  .x = experiments_to_subset,
+  .y = names(search_for),
+  .f = function(x, y) {
+    create_subset_of_exps_with_all_papers_wrapper_wrapper(
+      final_good_dataset___ = final_good_dataset_1_and_2,
+      experiments_to_include_df_with_group_id_col = x,
+      save_as_chr_ = y,
+      group_id_col_str_ = 'Group_ID'
+    )
+  }
+)
+
+objects_ <- list('acute_all' = acute_all, 'medium_all' = medium_all, 'prolonged_all' = prolonged_all)
+
+purrr::walk2(
+  .x = objects_,
+  .y = names(objects_),
+  .f = function(x, y) {
+    get_number_and_percentage_of_directionality_of_paper_and_exp_first_column_names_wrapper(x, y)
+  }
+)
+
+
+
+
+search_for <- list('vulnerable_all' = 'vulnerable', 'resilient_all' = 'resilient')
+
+experiments_to_subset <- lapply(X = search_for, function(x){
+  descriptions_1_and_2 %>%
+    dplyr::select(Group_ID, Stress_sensitivity_clean) %>%
+    dplyr::filter(descriptions_1_and_2$Stress_sensitivity_clean == x)
+})
+
+purrr::walk2(
+  .x = experiments_to_subset,
+  .y = names(search_for),
+  .f = function(x, y) {
+    create_subset_of_exps_with_all_papers_wrapper_wrapper(
+      final_good_dataset___ = final_good_dataset_1_and_2,
+      experiments_to_include_df_with_group_id_col = x,
+      save_as_chr_ = y,
+      group_id_col_str_ = 'Group_ID'
+    )
+  }
+)
+
+objects_ <- list('vulnerable_all' = vulnerable_all, 'resilient_all' = resilient_all)
+
+purrr::walk2(
+  .x = objects_,
+  .y = names(objects_),
+  .f = function(x, y) {
+    get_number_and_percentage_of_directionality_of_paper_and_exp_first_column_names_wrapper(x, y)
+  }
+)
+### GET ALL GENES FOR SOME SUBSETS  ###
+
+
+
+### PUT ALL PAPER/EXP NUMBER FILES INTO SINGLE EXCEL ###
+
+# Due to previous problems, I am doing good vulnerability tables here
+# objects_ <- list('vulnerable' = vulnerable, 'resilient' = resilient)
+# 
+# purrr::walk2(
+#   .x = objects_,
+#   .y = names(objects_),
+#   .f = function(x, y) {
+#     get_number_and_percentage_of_directionality_of_paper_and_exp_first_column_names_wrapper(x, y)
+#   }
+# )
+
+all_nb_files <- lapply(X = paste0('exp_and_paper_numbers/', list.files(path = 'exp_and_paper_numbers', pattern = '.*.tsv')), FUN = readr::read_tsv)
+
+names(all_nb_files) <- stringr::str_remove(string = list.files(path = 'exp_and_paper_numbers', pattern = '.*.tsv'), pattern = '.tsv')
+
+names(all_nb_files) <- stringr::str_replace(string = names(all_nb_files), pattern = 'exp_number_and_percentage', replacement = 'ExpNbPerc')
+
+names(all_nb_files) <- stringr::str_replace(string = names(all_nb_files), pattern = 'paper_number', replacement = 'PapNb')
+
+all_nb_files[["PapNb_numbers"]] <- NULL
+
+#Put exps and pap analyses in single df.
+for (list_nb in seq(1:(length(all_nb_files)/2))) {
+  all_nb_files[[list_nb]] <- merge(all_nb_files[[list_nb]], all_nb_files[[list_nb + length(all_nb_files)/2]], by = 'lower_final_gene_name')
+}
+
+all_nb_files <- all_nb_files[1:(length(all_nb_files)/2)]
+
+openxlsx::write.xlsx(x = all_nb_files, file = 'exp_and_paper_numbers/all_exp_and_paper_numbers.xlsx')
+
+#CHECKING:
+# exp_number_and_percentage_ : 34889 vs 34888
+# exp_number_and_percentage_immobilization_stress : 719 vs 718
+# exp_number_and_percentage_prolonged : 16529 vs 16528
+# exp_number_and_percentage_prolonged_all : 31893 vs 31892
+# paper_number_amygdala : 914 vs 913
+# paper_number_social_stress : 11950 vs 11949
+# exp_number_and_percentage_acute inside: OK
+# exp_number_and_percentage_medium_all: OK
+# paper_number_mice : ok
+
+
+
+
+### resilient i sensitive dorobiæ
+
+
+### GET NUMBERS OF GENES IN EXPS AND PAPERS IN SUBGROUPS ###
+### PUT ALL PAPER/EXP NUMBER FILES INTO SINGLE EXCEL ###
+
+
+
+### 030620_ANALYSIS ###
+# rm(analysis_03)
+analysis_03 <- list('directory' = '030620_data')
+analysis_03 <- list(
+  'directory' = analysis_03[[1]],
+  'top' = read_excel_all_sheets(directory = analysis_03$directory, file_name = 'A top stress genes top 101 final.xlsx', colNames_ = T), 
+  'dane_p' = read_excel_all_sheets(directory = analysis_03$directory, file_name = 'dane porownanwcze.xlsx', colNames_ = F))
+
+analysis_03$top$`paper rank`[[4]] <- NULL
+
+analysis_03$dane_p_formated <- purrr::map2(.x = analysis_03[['dane_p']], .y = names(analysis_03[['dane_p']]), .f = function(x,y) {
+  temp <- x
+  temp$present <- T
+  colnames(temp) <- c('lower_final_gene_name', stringr::str_replace_all(string = y, pattern = ' ', replacement = '_'))
+  temp$lower_final_gene_name <- tolower(temp$lower_final_gene_name)
+  temp$lower_final_gene_name <- stringr::str_replace_all(string = temp$lower_final_gene_name, pattern = ' ', replacement = '')
+  return(temp)
+})
+
+analysis_03$dane_p_formated_merged <- purrr::reduce(.x = analysis_03$dane_p_formated, .f = dplyr::full_join, by = "lower_final_gene_name")
+
+analysis_03$output <- purrr::map(.x = analysis_03[['top']], .f = function(x) { merge(x = x, y = analysis_03$dane_p_formated_merged, by = "lower_final_gene_name", all.x = T)  })
+
+analysis_03$output$`paper rank`
+
+readr::write_excel_csv2(analysis_03$output$`paper x faction rank`, paste0(analysis_03$directory, '/paper_x_faction_rank_and_dane_porwownawcze.xlsx'))
+
+readr::write_excel_csv2(analysis_03$output$`paper rank`, paste0(analysis_03$directory, '/paper_rank_and_dane_porwownawcze.xlsx'))
+
+### 030620_ANALYSIS ###
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
