@@ -36,6 +36,9 @@ descriptions_1_and_2$Stress_sensitivity[descriptions_1_and_2$Stress_sensitivity 
 ### Move badly placed descriptions ### 
 
 
+descriptions_1_and_2 <- wrapper_for_repairing_second_batch_descriptions(descriptions_1_and_2) #this places stress sensitivity for second batch in proper place
+
+
 
 descriptions_1_and_2$Repetitions <- stringr::str_replace_all(string = descriptions_1_and_2$Repetitions, pattern = "4 weeks  3 days", replacement = '31 days')
 descriptions_1_and_2$Repetitions_clean_days <- as.factor(cleanup_differing_units(charvec_ = descriptions_1_and_2$Repetitions, unit_identifier_regexList = list('.*d.*', '.*w.*'), unit_multiplier_list = list(1, 7))[[1]])

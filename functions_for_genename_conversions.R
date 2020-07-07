@@ -1845,6 +1845,304 @@ prepare_for_clustering_wrapper <- function(spread_df, remove_exp_with_this_many_
   return(temp)
 }
 
+
+
+is_characteristic_enriched_wrapper <- function(opts_ggplot_, value_of_interest_, table_of_interest_)
+{
+  opts_ggplot_$value_of_interest <- value_of_interest_
+  opts_ggplot_$table_of_interest <- table_of_interest_
+  
+  opts_ggplot_$individual_genes_length_of_table <-
+    purrr::map(
+      .x = opts_ggplot_$individual_genes_table$data,
+      .f = function(x) {
+        length(x[[opts_ggplot_$table_of_interest]])
+      }
+    )
+  
+  opts_ggplot_$length_of_tables <- ifelse(test = var(as.integer(opts_ggplot_$individual_genes_length_of_table)) == 0, yes = opts_ggplot_$individual_genes_length_of_table[[1]], no = NA)
+  
+  opts_ggplot_$individual_genes_length_of_table <- NULL
+  
+  opts_ggplot_$number_of_values_of_interest <-
+    purrr::map2(
+      .x = opts_ggplot_$individual_genes_table$data,
+      .y = opts_ggplot_$value_of_interest,
+      .f = function(x, y){
+        temp_ <-
+          tibble::enframe(x[[opts_ggplot_$table_of_interest]])
+        z <-
+          dplyr::tally(
+            x = subset(
+              x = temp_,
+              subset = temp_$value == y
+            )
+          )
+        return(as.integer(z))
+      })
+  opts_ggplot_$number_of_values_of_interest <- ifelse(test = var(as.integer(opts_ggplot_$number_of_values_of_interest)) == 0, yes = opts_ggplot_$number_of_values_of_interest[[1]], no = NA)
+  
+  opts_ggplot_$value_of_interest_per_all_values <- opts_ggplot_$number_of_values_of_interest/opts_ggplot_$length_of_tables
+  
+  opts_ggplot_$value_of_interest_with_logFC_per_all_logFC <-
+    purrr::map2(
+      .x = opts_ggplot_$individual_genes_table$data,
+      .y = opts_ggplot_$value_of_interest,
+      .f = function(x, y){
+        temp_all_logFC <- subset(x, subset = x[['logFC']] != 0)
+        length_all_logFC <- length(temp_all_logFC[[1]])
+        
+        temp_ <- subset(temp_all_logFC, subset = temp_all_logFC[[opts_ggplot_$table_of_interest]] == opts_ggplot_$value_of_interest)
+        
+        z <- length(temp_[[1]])/length_all_logFC
+        return(as.numeric(z))
+      })
+  
+  opts_ggplot_$mean_value_of_interest_with_logFC_per_all_logFC <- mean(as.numeric(opts_ggplot_$value_of_interest_with_logFC_per_all_logFC))
+  opts_ggplot_$sd_value_of_interest_with_logFC_per_all_logFC <- sd(as.numeric(opts_ggplot_$value_of_interest_with_logFC_per_all_logFC))
+  
+  return(opts_ggplot_)
+}
+
+
+get_number_of_exps_for_paper_per_gene_wrapper <- function(opts_ggplot_, papers_to_check_number_of_exprs_in)
+{
+  opts_ggplot_$numbers_how_many_times_gene_detected_in_exp_per_paper <- list()
+  opts_ggplot_$numbers_how_many_times_gene_detected_in_exp_per_paper$numbers <- list()
+  opts_ggplot_$numbers_how_many_times_gene_detected_in_exp_per_paper$mean <- list()
+  opts_ggplot_$numbers_how_many_times_gene_detected_in_exp_per_paper$sd <- list()
+  counter <- 1
+  
+  for (i in papers_to_check_number_of_exprs_in) {
+    opts_ggplot_$numbers_how_many_times_gene_detected_in_exp_per_paper$numbers[[counter]] <-
+      purrr::map_int(
+        .x = opts_ggplot_$how_many_times_gene_detected_in_exp_per_paper,
+        .f = function(x) {
+          temp <- subset(x, subset = as.character(x[[1]]) == i)
+          ifelse(length(temp) == 0, yes = 0, no = temp[[2]])
+        }
+      )
+    opts_ggplot_$numbers_how_many_times_gene_detected_in_exp_per_paper$numbers[[counter]][is.na(opts_ggplot_$numbers_how_many_times_gene_detected_in_exp_per_paper$numbers[[counter]])] <- 0
+    
+    
+    opts_ggplot_$numbers_how_many_times_gene_detected_in_exp_per_paper$mean[[counter]] <- mean(opts_ggplot_$numbers_how_many_times_gene_detected_in_exp_per_paper$numbers[[counter]])
+    opts_ggplot_$numbers_how_many_times_gene_detected_in_exp_per_paper$sd[[counter]] <- sd(opts_ggplot_$numbers_how_many_times_gene_detected_in_exp_per_paper$numbers[[counter]])
+    
+    counter = counter + 1
+  }
+  
+  names(opts_ggplot_$numbers_how_many_times_gene_detected_in_exp_per_paper$numbers) <- papers_to_check_number_of_exprs_in
+  names(opts_ggplot_$numbers_how_many_times_gene_detected_in_exp_per_paper$mean) <- papers_to_check_number_of_exprs_in
+  names(opts_ggplot_$numbers_how_many_times_gene_detected_in_exp_per_paper$sd) <- papers_to_check_number_of_exprs_in
+  return(opts_ggplot_)
+}
+
+
+
+get_exps_in_which_gene_was_present_for_given_value_of_interest_wrapper <- function(opts_individual_, logFC_col, exp_col, descriptions_, exp_col_in_descr_, list_for_subsetting_name_is_colname_value_is_value_of_interest)
+{
+  temp <- lapply(opts_individual_$individual_genes_table$data, FUN = function(x) { subset(x, subset = x[[logFC_col]] != 0)  })
+  
+  temp_exps <- lapply(temp, FUN = function(x) { temp_temp <- x[[exp_col]]  })
+  
+  names(temp_exps) <- opts_individual_$individual_genes_table$lower_final_gene_name
+  
+  temp_exps_df <- purrr::map2(.x = temp_exps, .y = names(temp_exps), .f = function(x, y) { data.frame('exp' = x, 'gene' = rep(y, length(x)) )  })
+  
+  temp_exps_df_bind <- rlist::list.rbind(temp_exps_df)
+  
+  temp_exps_df_bind$present <- T
+  
+  temp_exps_df_bind_spread <- tidyr::spread(temp_exps_df_bind, key = gene, value = present)
+  
+  temp_exps_df_bind_spread_merge <- merge(x = temp_exps_df_bind_spread, y = descriptions_, by.x = 'exp', by.y = exp_col_in_descr_, all.x = T)
+  
+  for (n in seq_along(list_for_subsetting_name_is_colname_value_is_value_of_interest)) {
+    temp_exps_df_bind_spread_merge <- subset(temp_exps_df_bind_spread_merge, subset = temp_exps_df_bind_spread_merge[[names(list_for_subsetting_name_is_colname_value_is_value_of_interest[n])]] == list_for_subsetting_name_is_colname_value_is_value_of_interest[[n]])
+  }
+  
+  col_with_genes <- temp_exps_df_bind_spread_merge[,1:length(opts_individual_$individual_genes_table$lower_final_gene_name)+1]
+  
+  nb_of_values_of_intr <- purrr::map(.x = col_with_genes, .f = function(x) {length(subset(x, x == T))})
+  
+  return_ <- list('primary_dataset' = temp_exps_df_bind_spread_merge, 'nb_of_values_of_intr' = nb_of_values_of_intr, 'mean' = mean(as.integer(temp5)), 'SD' = sd(as.integer(temp5)), 'subseting_conditions' =  list_for_subsetting_name_is_colname_value_is_value_of_interest)
+  
+  return(return_)
+}
+
+
+
+
+getting_all_gc_from_input_with_cols_nb_and_gene <- function(opts_whole_gc = opts_whole_gc)
+{
+  opts_whole_gc$input$gene <- tolower(opts_whole_gc$input$gene)
+  
+  temp_biomart <-biomaRt::useMart("ENSEMBL_MART_ENSEMBL", dataset = "mmusculus_gene_ensembl")
+  
+  opts_whole_gc$biomart_raw_mus <- biomaRt::getBM(
+    attributes = "external_gene_name",
+    filters = "external_gene_name",
+    values = opts_whole_gc$input$gene,
+    uniqueRows = T,
+    mart = temp_biomart
+  )
+  opts_whole_gc$biomart_raw_mus$external_gene_name <- tolower(opts_whole_gc$biomart_raw_mus$external_gene_name)
+  opts_whole_gc$biomart_raw_mus$biomart_detected <- T
+  
+  opts_whole_gc$input_and_biomart_raw_mus <- merge(x = opts_whole_gc$input, y = opts_whole_gc$biomart_raw_mus, by.x = 'gene', by.y = 'external_gene_name', all.x = T)
+  
+  opts_whole_gc$input_and_biomart_found_mus <- subset(x = opts_whole_gc$input_and_biomart_raw_mus, subset = opts_whole_gc$input_and_biomart_raw_mus$biomart_detected == T)
+  opts_whole_gc$input_and_biomart_found_mus$biomart_detected <- opts_whole_gc$input_and_biomart_found_mus$gene
+  
+  
+  opts_whole_gc$input_and_biomart_absent_mus <- subset(x = opts_whole_gc$input_and_biomart_raw_mus, subset = is.na(opts_whole_gc$input_and_biomart_raw_mus$biomart_detected))
+  
+  if (length(opts_whole_gc$input_and_biomart_found_mus[[1]]) + length(opts_whole_gc$input_and_biomart_absent_mus[[1]]) == length(opts_whole_gc$input[[1]])) {
+    
+    opts_whole_gc$list_query_for_ncbi <- get_query_for_ncbi_geneID_annotation(char_vec_gene_id_to_query_with = opts_whole_gc$input_and_biomart_absent_mus$gene, char_vec_organism = rep('mouse', length(opts_whole_gc$input_and_biomart_absent_mus[[1]])), chr_gene_identifier = 'Gene name')
+    
+    opts_whole_gc$ncbi_return <- search_for_ids_in_ncbi(opts_whole_gc$list_query_for_ncbi[[1]])
+    
+    opts_whole_gc$annotated_data <-
+      make_and_write_table_with_original_and_ncbi_ids(
+        df_returned_by_entrez_gene_search = opts_whole_gc$ncbi_return,
+        df_original_data = opts_whole_gc$input_and_biomart_absent_mus,
+        # str_name_of_the_file = 'dupa.txt',
+        # experiment_directory_name = directory_name,
+        str_to_cut_from_ncbi_response_to_form_back_Probe_ID = opts_whole_gc$list_query_for_ncbi[[2]],
+        vector_of_species_names_used_ = opts_whole_gc$list_query_for_ncbi[[3]],
+        exp_species___ = rep('mouse', length(opts_whole_gc$input_and_biomart_absent_mus[[1]])),
+        possible_names_for_species__ = opts_whole_gc$list_query_for_ncbi[[4]]
+      )
+    
+    opts_whole_gc$annotated_data_for_biomart <- subset(opts_whole_gc$annotated_data, opts_whole_gc$annotated_data$external_gene_name != 'none')
+    
+    opts_whole_gc$annotated_data_none <- subset(opts_whole_gc$annotated_data, opts_whole_gc$annotated_data$external_gene_name == 'none') %>%
+      dplyr::select(nb, gene, biomart_detected)
+    opts_whole_gc$annotated_data_none$biomart_detected <- opts_whole_gc$annotated_data_none$gene
+    
+    opts_whole_gc$biomart_annotated_data_for_biomart_mus <- biomaRt::getBM(
+      attributes = c('entrezgene_id', "external_gene_name"),
+      filters = "entrezgene_id",
+      values = opts_whole_gc$annotated_data_for_biomart$external_gene_name,
+      uniqueRows = T,
+      mart = temp_biomart
+    )
+    
+    opts_whole_gc$biomart_merged_annotated_data_for_biomart_mus <- merge(opts_whole_gc$annotated_data_for_biomart, opts_whole_gc$biomart_annotated_data_for_biomart_mus, by.x = 'external_gene_name', by.y = 'entrezgene_id', all.x = T) %>%
+      dplyr::select(nb, gene, biomart_detected = external_gene_name.y)
+    
+    opts_whole_gc$biomart_merged_annotated_data_for_biomart_mus_found <- subset(x = opts_whole_gc$biomart_merged_annotated_data_for_biomart_mus, subset = !is.na(opts_whole_gc$biomart_merged_annotated_data_for_biomart_mus$biomart_detected))
+    
+    
+    opts_whole_gc$biomart_merged_annotated_data_for_biomart_mus_absent <- subset(x = opts_whole_gc$biomart_merged_annotated_data_for_biomart_mus, subset = is.na(opts_whole_gc$biomart_merged_annotated_data_for_biomart_mus$biomart_detected))
+    opts_whole_gc$biomart_merged_annotated_data_for_biomart_mus_absent$biomart_detected <- opts_whole_gc$biomart_merged_annotated_data_for_biomart_mus_absent$gene
+    
+    opts_whole_gc$output <- rbind(opts_whole_gc$input_and_biomart_found_mus, opts_whole_gc$annotated_data_none, opts_whole_gc$biomart_merged_annotated_data_for_biomart_mus_found, opts_whole_gc$biomart_merged_annotated_data_for_biomart_mus_absent)
+    opts_whole_gc$output <- opts_whole_gc$output[order(opts_whole_gc$output$nb),] 
+    
+    return(opts_whole_gc)
+  }
+}
+
+
+
+wrapper_for_repairing_second_batch_descriptions <- function(temp_descriptions_1_and_2)
+{
+  library(Hmisc)
+  
+  temp_descriptions_1_and_2_first <- subset(x = descriptions_1_and_2, subset = descriptions_1_and_2$Paper_ID %nin% c(10, 49, 78, 79, 80))
+  
+  temp_descriptions_1_and_2_second <- subset(x = descriptions_1_and_2, subset = descriptions_1_and_2$Paper_ID %in% c(10, 49, 78, 79, 80))
+  
+  temp_descriptions_1_and_2_second$Data_sourse <- temp_descriptions_1_and_2_second$Reported_comparision
+  
+  temp_descriptions_1_and_2_second$Reported_comparision <- temp_descriptions_1_and_2_second$Stress_sensitivity
+  
+  temp_descriptions_1_and_2_second$Stress_sensitivity <- temp_descriptions_1_and_2_second$Additional_group_info
+  
+  temp_descriptions_1_and_2_second$Additional_group_info <- temp_descriptions_1_and_2_second$group_values_
+  
+  temp_descriptions_1_and_2_second$group_values_ <- temp_descriptions_1_and_2_second$doubts
+  
+  temp_descriptions_1_and_2_second$doubts <- temp_descriptions_1_and_2_second$`Reversal_of_comparision_(from_control_vs_stress_to_stress_vs_control)`
+  
+  temp_descriptions_1_and_2_second$`Reversal_of_comparision_(from_control_vs_stress_to_stress_vs_control)` <- temp_descriptions_1_and_2_second$Log2_transform
+  
+  temp_descriptions_1_and_2_second$Log2_transform <- temp_descriptions_1_and_2_second$Indefinite_values_or_values_approaching_Infinity
+  
+  temp_descriptions_1_and_2_second$Indefinite_values_or_values_approaching_Infinity <- NA
+  
+  temp_descriptions_1_and_2_second$Stress_sensitivity_clean <- temp_descriptions_1_and_2_second$Stress_sensitivity
+  
+  temp_descriptions_1_and_2_second$Stress_sensitivity_clean <- stringr::str_replace(temp_descriptions_1_and_2_second$Stress_sensitivity_clean, pattern = 'susceptible', replacement = 'vulnerable')
+  
+  temp_descriptions_1_and_2_ <- rbind(temp_descriptions_1_and_2_first, temp_descriptions_1_and_2_second)
+  
+  return(temp_descriptions_1_and_2_)
+}
+
+
+
+create_subset_of_exps_with_all_papers_wrapper_wrapper <- function(final_good_dataset___, experiments_to_include_df_with_group_id_col, save_as_chr_, group_id_col_str_ = 'Group_ID')
+{
+  include_these_exps <- experiments_to_include_df_with_group_id_col[[group_id_col_str_]]
+  
+  temp_ <- create_subset_of_exps_with_all_papers_wrapper(final_good_dataset__ = final_good_dataset___, experiments_to_include_ = include_these_exps, save_as_chr = save_as_chr_)
+  temp_[is.na(temp_)] <- 0
+  
+  readr::write_tsv(x = temp_, path = , paste0('for_clustering_', save_as_chr_, '.tsv'))
+  save(temp_, file = paste0('for_clustering_', save_as_chr_))
+  assign(x = save_as_chr_, value = temp_, envir = globalenv())
+}
+
+
+create_subset_of_exps_with_all_papers_wrapper <- function(final_good_dataset__ = final_good_dataset, experiments_to_include_ = experiments_to_include, save_as_chr)
+{
+  subset_matrix <-subset(final_good_dataset__, subset = final_good_dataset__$Experiment %in% experiments_to_include_)
+  
+  medianed_subset_matrix <- subset_matrix %>%
+    dplyr::group_by(Experiment, lower_final_gene_name) %>%
+    dplyr::summarize(logFC_median = median(logFC))
+  
+  spread_medianed_subset_matrix <- tidyr::spread(data = medianed_subset_matrix, key = Experiment, value = logFC_median)
+  
+  return(spread_medianed_subset_matrix)
+}
+
+
+
+perc4_analysis_input_prep_wrapper <- function(compare_input_, gene_name_col_name_)
+{
+  compare_input_prepared_ <- purrr::map2(
+    .x = compare_input_,
+    .y = names(compare_input_),
+    .f = function(x, y) {
+      colnames(x) <- gene_name_col_name_
+      if (any(stringr::str_detect(string = x[[1]], pattern = 'mt2/mt2a'))) {
+        x <- subset(x = x, subset = !stringr::str_detect(string = x[[1]], pattern = 'mt2/mt2a'))
+        x <- rbind(x, 'mt2', 'mt2a')
+      }
+      if (any(stringr::str_detect(string = x[[1]], pattern = 'il6r/il6ra'))) {
+        x <- subset(x = x, subset = !stringr::str_detect(string = x[[1]], pattern = 'il6r/il6ra'))
+        x <- rbind(x, 'il6r', 'il6ra')
+      }
+      
+      x[[1]] <- tolower(x[[1]])
+      x[[1]] <- stringr::str_remove_all(string = x[[1]], pattern = ' ')
+      
+      x[[y]] <- T
+      
+      
+      return(x)
+      
+    })
+  
+  compare_input_prepared_ <- purrr::reduce(.x = compare_input_prepared_, .f = dplyr::full_join, by = gene_name_col_name_)
+  
+  return(compare_input_prepared_)
+  
+}
 # Not implemented fully yet, cause not needed after all
 # do_dunnet <- function(df__, value_col_name_, trait_col_name_)
 # {
